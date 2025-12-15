@@ -23,8 +23,13 @@ export interface IProps {
 interface IPropsExtended extends IProps {
     secondaryLabel: string;
     SecondaryIcon?: ComponentType<React.SVGAttributes<SVGElement>>;
-    destructive?: "primary" | "secondary";
     onSecondaryClick(): void;
+
+    tertiaryLabel?: string;
+    TertiaryIcon?: ComponentType<React.SVGAttributes<SVGElement>>;
+    onTertiaryClick?(): void;
+
+    destructive?: "primary" | "secondary" | "tertiary";
 
     // If set, this will override the max-width (of the description) making the toast wider or narrower than standard
     overrideWidth?: string;
@@ -37,9 +42,12 @@ const GenericToast: React.FC<XOR<IPropsExtended, IProps>> = ({
     PrimaryIcon,
     secondaryLabel,
     SecondaryIcon,
+    tertiaryLabel,
+    TertiaryIcon,
     destructive,
     onPrimaryClick,
     onSecondaryClick,
+    onTertiaryClick,
     overrideWidth,
 }) => {
     const detailContent = detail ? <div className="mx_Toast_detail">{detail}</div> : null;
@@ -51,6 +59,16 @@ const GenericToast: React.FC<XOR<IPropsExtended, IProps>> = ({
                 {detailContent}
             </div>
             <div className="mx_Toast_buttons" aria-live="off">
+                {onTertiaryClick && tertiaryLabel && (
+                    <Button
+                        onClick={onTertiaryClick}
+                        kind={destructive === "tertiary" ? "destructive" : "tertiary"}
+                        Icon={TertiaryIcon}
+                        size="sm"
+                    >
+                        {tertiaryLabel}
+                    </Button>
+                )}
                 {onSecondaryClick && secondaryLabel && (
                     <Button
                         onClick={onSecondaryClick}
