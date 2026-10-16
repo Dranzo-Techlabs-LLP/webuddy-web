@@ -1,0 +1,91 @@
+<style type="text/css">
+    /*
+     * Clariva home page (shown when signed in and no room is selected). Loaded through config
+     * `embedded_pages.home_url`; it is inlined into the app, so Compound tokens (light/dark) are available.
+     * Copy is English literals on purpose (Clariva strings are English-only, see docs/clariva/IMPLEMENTATION-GUIDE.md).
+     */
+    /* EmbeddedPage wraps this file in .mx_HomePage_body (auto height): give it the height of .mx_HomePage so the page can centre */
+    .mx_HomePage_body {
+        height: 100%;
+    }
+
+    .mx_ClarivaHome {
+        box-sizing: border-box;
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: var(--cpd-space-10x) var(--cpd-space-6x);
+        color: var(--cpd-color-text-primary);
+    }
+
+    /* light "glass" tile behind the mark (as on the Android landing page): the navy bubble would vanish on the dark theme */
+    .mx_ClarivaHome_logoTile {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 96px;
+        height: 96px;
+        border-radius: 26px;
+        background-color: #ffffff;
+        box-shadow: 0 8px 24px rgba(27, 29, 34, 0.18);
+    }
+
+    .mx_ClarivaHome_logo {
+        width: 64px;
+        height: 64px;
+    }
+
+    .mx_ClarivaHome_title {
+        font: var(--cpd-font-heading-lg-semibold);
+        margin: var(--cpd-space-6x) 0 0;
+    }
+
+    .mx_ClarivaHome_tagline {
+        font: var(--cpd-font-body-lg-regular);
+        color: var(--cpd-color-text-secondary);
+        margin: var(--cpd-space-2x) 0 0;
+    }
+
+    .mx_ClarivaHome_actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: var(--cpd-space-4x);
+        margin-top: var(--cpd-space-8x);
+    }
+
+    .mx_ClarivaHome_action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 160px;
+        box-sizing: border-box;
+        padding: var(--cpd-space-3x) var(--cpd-space-6x);
+        border-radius: 999px;
+        font: var(--cpd-font-body-md-medium);
+        text-decoration: none;
+        background-color: var(--cpd-color-bg-action-primary-rest);
+        color: var(--cpd-color-text-on-solid-primary) !important;
+    }
+
+    .mx_ClarivaHome_action.mx_ClarivaHome_secondary {
+        background-color: transparent;
+        color: var(--cpd-color-text-primary) !important;
+        border: 1px solid var(--cpd-color-border-interactive-secondary);
+    }
+</style>
+
+<div class="mx_ClarivaHome">
+    <div class="mx_ClarivaHome_logoTile">
+        <img class="mx_ClarivaHome_logo" src="themes/clariva/img/logos/clariva-logo.svg" alt="Clariva" />
+    </div>
+    <h1 class="mx_ClarivaHome_title">Welcome to Clariva</h1>
+    <p class="mx_ClarivaHome_tagline">Private conversations. Real value.</p>
+    <div class="mx_ClarivaHome_actions">
+        <a class="mx_ClarivaHome_action" href="#/dm">Start a chat</a>
+        <a class="mx_ClarivaHome_action mx_ClarivaHome_secondary" href="#/new">New room</a>
+    </div>
+</div>

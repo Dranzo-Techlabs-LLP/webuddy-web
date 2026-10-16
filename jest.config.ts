@@ -1,17 +1,9 @@
 /*
 Copyright 2023 The Matrix.org Foundation C.I.C.
+Copyright 2024 New Vector Ltd.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only
+Please see LICENSE in the repository root for full details.
 */
 
 import { env } from "process";
@@ -45,7 +37,10 @@ const config: Config = {
         "recorderWorkletFactory": "<rootDir>/node_modules/matrix-react-sdk/__mocks__/empty.js",
         "^fetch-mock$": "<rootDir>/node_modules/fetch-mock",
     },
-    transformIgnorePatterns: ["/node_modules/(?!matrix-js-sdk).+$", "/node_modules/(?!matrix-react-sdk).+$"],
+    // CLARIVA: matrix-js-sdk is a real directory in node_modules here (not a `yarn link`), and its TypeScript sources
+    // must be transformed. The stock two-pattern list made the second pattern ignore matrix-js-sdk, so no shell test
+    // could start. matrix-react-sdk is the vendored workspace package; its real path is outside node_modules.
+    transformIgnorePatterns: ["/node_modules/(?!(matrix-js-sdk|matrix-react-sdk)/).+$"],
     coverageReporters: ["text-summary", "lcov"],
     testResultsProcessor: "@casualbot/jest-sonar-reporter",
 };

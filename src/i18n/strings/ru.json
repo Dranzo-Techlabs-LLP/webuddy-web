@@ -16,10 +16,8 @@
         "cannot_load_config": "Не удалось загрузить файл конфигурации. Попробуйте обновить страницу.",
         "invalid_configuration_mixed_server": "Неверная конфигурация: нельзя указать default_hs_url вместе с default_server_name или default_server_config",
         "invalid_configuration_no_server": "Неверная конфигурация: сервер по умолчанию не указан.",
-        "invalid_json": "Конфигурация Element содержит неверный JSON. Исправьте проблему и обновите страницу.",
         "invalid_json_detail": "Сообщение из парсера: %(message)s",
-        "invalid_json_generic": "Неверный JSON",
-        "misconfigured": "Ваш Element неверно настроен"
+        "invalid_json_generic": "Неверный JSON"
     },
     "incompatible_browser": {
         "title": "Неподдерживаемый браузер"
@@ -27,6 +25,5 @@
     "powered_by_matrix": "На технологии Matrix",
     "powered_by_matrix_with_logo": "Децентрализованное, зашифрованное общение и сотрудничество на основе $matrixLogo",
     "unknown_device": "Неизвестное устройство",
-    "web_default_device_name": "%(appName)s: %(browserName)s на %(osName)s",
-    "welcome_to_element": "Добро пожаловать в Element"
+    "web_default_device_name": "%(appName)s: %(browserName)s на %(osName)s"
 }

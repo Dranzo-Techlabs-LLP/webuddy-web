@@ -7,25 +7,18 @@ exports[`<VectorAuthFooter /> should match snapshot 1`] = `
     role="contentinfo"
   >
     <a
-      href="https://element.io/blog"
+      href="https://clarivahub.com/privacy.html"
       rel="noreferrer noopener"
       target="_blank"
     >
-      Blog
+      Privacy
     </a>
     <a
-      href="https://twitter.com/element_hq"
+      href="https://clarivahub.com/terms.html"
       rel="noreferrer noopener"
       target="_blank"
     >
-      Twitter
-    </a>
-    <a
-      href="https://github.com/element-hq/element-web"
-      rel="noreferrer noopener"
-      target="_blank"
-    >
-      GitHub
+      Terms
     </a>
     <a
       href="https://matrix.org"

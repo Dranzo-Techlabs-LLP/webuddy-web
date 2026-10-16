@@ -16,10 +16,8 @@
         "cannot_load_config": "Seadistuste faili laadimine ei õnnestunud: uuesti proovimiseks palun laadi leht uuesti.",
         "invalid_configuration_mixed_server": "Vigane seadistus: default_hs_url ei saa olla määratud koos default_server_name või default_server_config tunnustega",
         "invalid_configuration_no_server": "Vigane seadistus: vaikimisi server on määramata.",
-        "invalid_json": "Sinu Element'i seadistustes on vigased JSON-vormingus andmed. Palun paranda see viga ja laadi leht uuesti.",
         "invalid_json_detail": "Sõnum parserist on: %(message)s",
-        "invalid_json_generic": "Vigane JSON",
-        "misconfigured": "Sinu Element on valesti seadistatud"
+        "invalid_json_generic": "Vigane JSON"
     },
     "incompatible_browser": {
         "title": "Sellele brauserile puudub tugi"
@@ -27,6 +25,5 @@
     "powered_by_matrix": "Põhineb Matrix'il",
     "powered_by_matrix_with_logo": "Hajutatud ja krüpteeritud suhtlus- ning ühistöörakendus, mille aluseks on $matrixLogo",
     "unknown_device": "Tundmatu seade",
-    "web_default_device_name": "%(appName)s: %(browserName)s operatsioonisüsteemis %(osName)s",
-    "welcome_to_element": "Tere tulemast kasutama suhtlusrakendust Element"
+    "web_default_device_name": "%(appName)s: %(browserName)s operatsioonisüsteemis %(osName)s"
 }

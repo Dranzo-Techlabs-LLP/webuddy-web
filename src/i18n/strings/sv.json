@@ -16,10 +16,8 @@
         "cannot_load_config": "Kan inte ladda konfigurationsfilen: ladda om sidan för att försöka igen.",
         "invalid_configuration_mixed_server": "Ogiltig konfiguration: en default_hs_url kan inte anges tillsammans med default_server_name eller default_server_config",
         "invalid_configuration_no_server": "Ogiltiga inställningar: ingen standardserver specificerad.",
-        "invalid_json": "Din Elementkonfiguration innehåller ogiltig JSON. Vänligen rätta till problemet och ladda om sidan.",
         "invalid_json_detail": "Meddelandet från parsern är: %(message)s",
-        "invalid_json_generic": "Ogiltig JSON",
-        "misconfigured": "Din Element är felkonfigurerad"
+        "invalid_json_generic": "Ogiltig JSON"
     },
     "incompatible_browser": {
         "title": "Webbläsaren stöds ej"
@@ -27,6 +25,5 @@
     "powered_by_matrix": "Drivs av Matrix",
     "powered_by_matrix_with_logo": "Decentraliserad krypterad chatt &amp; samarbete som drivs av $matrixLogo",
     "unknown_device": "Okänd enhet",
-    "web_default_device_name": "%(appName)s: %(browserName)s på %(osName)s",
-    "welcome_to_element": "Välkommen till Element"
+    "web_default_device_name": "%(appName)s: %(browserName)s på %(osName)s"
 }

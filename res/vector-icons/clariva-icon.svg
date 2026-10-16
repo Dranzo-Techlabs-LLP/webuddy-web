@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>Clariva</title>
+  <rect width="1024" height="1024" fill="#F4F6FB"/>
+  <g transform="translate(512 512) scale(0.915) translate(-512 -532.5)">
+    <path d="M 230 250 L 540 250 Q 605 250 605 315 L 605 470 Q 605 535 540 535 L 425 535 L 380 595 L 380 535 L 230 535 Q 165 535 165 470 L 165 315 Q 165 250 230 250 Z" fill="#0B1C3D"/>
+    <path d="M 484 420 L 794 420 Q 859 420 859 485 L 859 690 Q 859 755 794 755 L 590 755 L 545 815 L 545 755 L 484 755 Q 419 755 419 690 L 419 485 Q 419 420 484 420 Z" fill="#00BFA5"/>
+    <circle cx="540" cy="510" r="32" fill="#FFFFFF"/>
+    <circle cx="540" cy="510" r="13" fill="#0B1C3D"/>
+  </g>
+</svg>

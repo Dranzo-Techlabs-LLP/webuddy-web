@@ -1,0 +1,400 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Clariva "Clear Water" materials: frosted glass over a soft aurora (docs/clariva/DESIGN-SYSTEM.md section 3).
+ *
+ * RULES (read before using a material)
+ *   1. NEVER NEST backdrop-filter. A glass panel frosts the wallpaper once; everything inside it (tiles, chips, rows)
+ *      uses @mixin cg-inset, which has no blur. A blurred element inside a blurred ancestor re-samples a flattened
+ *      layer: it looks muddy and it is the biggest GPU cost.
+ *   2. Bubbles and list rows get NO backdrop-filter (there can be hundreds): use cg-glass-tint / cg-inset (translucent
+ *      fill + specular edge, no blur).
+ *   3. Budget: at most ~6 backdrop-filter elements visible at once (header, list pane, composer, tab bar, one overlay,
+ *      one toast). Never animate a backdrop-filter or its blur radius.
+ *   4. Text on glass uses --cg-text / --cg-text-2 / --cg-text-3 (checked against the worst-case aurora point behind
+ *      every fill by test/clariva/designTokens-test.ts), not Compound's text-secondary.
+ *   5. A glass ancestor traps z-index: popovers, menus and dialogs render at the app root (Element already does);
+ *      do not move them inside a glass panel.
+ *   6. NO ANIMATED LAYER UNDER A backdrop-filter. The browser re-blurs a backdrop-filter element on every frame in which
+ *      anything behind it changes, so a drifting layer under a panel re-blurs it 60 times a second. The live aurora
+ *      (.cg-aurora--live) is therefore allowed in exactly two places: (a) the sign-in page, behind ONE glass card, and
+ *      (b) the Home dashboard, ONLY as a decorative glow behind the greeting area that no glass card overlaps. Anywhere
+ *      else the wallpaper is the static one on <body>.
+ *   7. FLOATING CHROME SITS OVER ARBITRARY CONTENT, NOT JUST THE AURORA. Glass that the timeline / a list / a photo can
+ *      scroll under (room header, composer, tab bar, scroll-to-latest pill) must be cg-glass-thick ONLY (there is no
+ *      "veiled regular" exception: the pane wash is a light veil); it carries --cg-text and nothing else for essential text (never text-2, text-3, coral-text...). Measured
+ *      over pure white and pure black content: thick keeps --cg-text at 5.6:1 (dark, over white) and 10.3:1 (light,
+ *      over black); bare regular / thin dark glass falls to 3.1 / 2.6:1 over white, which is why the rule exists.
+ *
+ * HOW IT WORKS. Every material reads a small set of DERIVED tokens (--cg-surface-*, --cg-backdrop-*, --cg-edge*) that
+ * are declared once, on <body> (section 1), so they see the dark overrides. The accessibility/capability fallbacks
+ * (section 2) are ONE place that re-points those tokens, so every surface that uses a mixin or a .cg-* class is covered
+ * without repeating a media query:
+ *   - @supports not backdrop-filter / prefers-reduced-transparency / prefers-contrast: more / the in-app High contrast
+ *       themes (body.cpd-theme-light-hc, cpd-theme-dark-hc)
+ *       -> opaque --cg-solid-* fill, no blur, a visible 1px border (an inset ring: it does not change layout)
+ *   - forced-colors: active -> system colours (Canvas / CanvasText / Highlight) + a real 1px outline, because
+ *       box-shadow is not painted in that mode (the only fallback a mixin has to carry itself, see cg-edge-forced)
+ *   - the wallpaper layer (.cg-aurora) is switched off by the High contrast theme, prefers-contrast: more and
+ *       prefers-reduced-transparency (flat --cg-bg), and hidden under forced colours; .cg-skeleton gets an outline there
+ *
+ * Usage on existing Element selectors, no markup change:
+ *     .mx_Foo_panel { @mixin cg-glass-thick; }
+ *     .mx_Foo_tile  { @mixin cg-inset; }
+ * or on new markup:   <div class="cg-glass-thick">...</div>
+ *
+ * Mixins that ALSO have a utility class of the same name: cg-glass-thin, cg-glass-regular, cg-glass-thick, cg-glass-tint,
+ * cg-inset, cg-scrim. Mixin-only: cg-focus-ring (and the internal cg-solid-tokens, cg-edge-forced, cg-aurora-off).
+ * Wallpaper: .cg-aurora, .cg-aurora--live (+ .cg-paused).
+ *
+ * Mixins must be defined before they are used: _clariva.pcss imports this file before the surface partials.
+ */
+
+/* ───────────── 1. derived tokens (declared on body so the dark theme's raw values are in scope) ───────────── */
+
+:root[data-clariva] body {
+    --cg-surface-thin: var(--cg-fill-thin);
+    --cg-surface-regular: var(--cg-fill-regular);
+    --cg-surface-thick: var(--cg-fill-thick);
+    --cg-surface-tint: var(--cg-fill-tint);
+    --cg-surface-inset: var(--cg-fill-inset);
+    --cg-surface-pane: var(--cg-pane-wash);
+
+    /* the frost itself: blur + saturation boost */
+    --cg-backdrop-thin: blur(var(--cg-blur-thin)) saturate(var(--cg-sat-thin));
+    --cg-backdrop-regular: blur(var(--cg-blur-regular)) saturate(var(--cg-sat-regular));
+    --cg-backdrop-thick: blur(var(--cg-blur-thick)) saturate(var(--cg-sat-thick));
+    --cg-backdrop-scrim: blur(var(--cg-blur-scrim));
+
+    /* hairline + specular top edge: what makes a flat translucent rectangle read as glass */
+    --cg-edge: inset 0 0 0 1px var(--cg-line), inset 0 1px 0 var(--cg-highlight);
+    --cg-edge-flat: inset 0 0 0 1px var(--cg-line);
+    --cg-edge-tint: inset 0 0 0 1px var(--cg-tint-edge), inset 0 1px 0 var(--cg-highlight);
+
+    /* the aurora is the wallpaper of the whole app: every glass surface refracts it */
+    background-color: var(--cg-bg);
+    background-image: var(--cg-aurora);
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    background-attachment: fixed;
+}
+
+/* ───────────── 2. fallbacks: ONE place for every material ───────────── */
+
+@define-mixin cg-solid-tokens {
+    --cg-surface-thin: var(--cg-solid-thin);
+    --cg-surface-regular: var(--cg-solid-regular);
+    --cg-surface-thick: var(--cg-solid-thick);
+    --cg-surface-tint: var(--cg-solid-tint);
+    --cg-surface-inset: var(--cg-solid-inset);
+    --cg-surface-pane: var(--cpd-color-bg-canvas-default);
+
+    /* nothing to blur with */
+    --cg-backdrop-thin: none;
+    --cg-backdrop-regular: none;
+    --cg-backdrop-thick: none;
+    --cg-backdrop-scrim: none;
+
+    /* a visible 1px border instead of the soft hairline + highlight */
+    --cg-edge: inset 0 0 0 1px var(--cg-line-strong);
+    --cg-edge-flat: inset 0 0 0 1px var(--cg-line-strong);
+    --cg-edge-tint: inset 0 0 0 1px var(--cg-line-strong);
+}
+
+/*
+ * The wallpaper LAYER (.cg-aurora, a React-rendered element, as opposed to the one painted on <body>) is switched off
+ * where the opaque fallbacks are: it becomes the flat --cg-bg, and a live one stops drifting. Used INSIDE a `body` rule, so
+ * it compiles to `<that body selector> .cg-aurora` and out-ranks the layer's own rules (section 4) at (0,3,1) or more.
+ */
+@define-mixin cg-aurora-off {
+    .cg-aurora,
+    .cg-aurora--live::before {
+        background-image: none;
+    }
+
+    .cg-aurora--live::before {
+        animation: none;
+        will-change: auto;
+    }
+}
+
+/* the browser cannot blur what is behind an element (Firefox < 103, or the feature switched off); the prefixed form counts */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root[data-clariva] body {
+        @mixin cg-solid-tokens;
+    }
+}
+
+/* stylelint-disable-next-line media-feature-name-no-unknown */
+@media (prefers-reduced-transparency: reduce) {
+    :root[data-clariva] body {
+        @mixin cg-solid-tokens;
+        @mixin cg-aurora-off;
+    }
+}
+
+@media (prefers-contrast: more) {
+    :root[data-clariva] body {
+        @mixin cg-solid-tokens;
+        @mixin cg-aurora-off;
+    }
+}
+
+/*
+ * The in-app "High contrast" themes (Settings > Appearance). theme.ts puts cpd-theme-light-hc / cpd-theme-dark-hc on
+ * <body>; that is a class, not an OS media query, so it needs its own switch: the same opaque tokens as above and NO
+ * wallpaper, painted or layered. The extra attribute selector makes this (0,3,1) against the derived tokens' (0,2,1), so it
+ * wins whatever the source order; the forced-colors block below lists it too so Canvas still wins when both apply.
+ */
+:root[data-clariva] body[class*="-hc"] {
+    @mixin cg-solid-tokens;
+    @mixin cg-aurora-off;
+
+    background-image: none;
+}
+
+/*
+ * forced colours: the UA repaints backgrounds with system colours and drops shadows, so say it explicitly. The selector
+ * list restates the High contrast theme's selector (same specificity, later in the file) so Canvas wins over its solids.
+ * The wallpaper layer is hidden; a skeleton block (its fill is repainted Canvas, i.e. invisible) gets a real outline.
+ */
+@media (forced-colors: active) {
+    :root[data-clariva] body,
+    :root[data-clariva] body[class*="-hc"] {
+        @mixin cg-solid-tokens;
+
+        --cg-surface-thin: Canvas;
+        --cg-surface-regular: Canvas;
+        --cg-surface-thick: Canvas;
+        --cg-surface-tint: ButtonFace;
+        --cg-surface-inset: Canvas;
+        --cg-surface-pane: Canvas;
+        --cg-edge: 0 0 0 0 transparent; /* not "none": it cannot sit in a comma list with the elevation shadow */
+        --cg-edge-flat: 0 0 0 0 transparent;
+        --cg-edge-tint: 0 0 0 0 transparent;
+
+        background-image: none;
+    }
+
+    :root[data-clariva] .cg-aurora {
+        display: none;
+    }
+
+    :root[data-clariva] .cg-skeleton {
+        outline: 1px solid CanvasText;
+        outline-offset: -1px;
+    }
+}
+
+/* box-shadow is not painted in forced-colors mode, so a material draws its edge as an outline there (no layout shift);
+   the focus ring of a focusable material is restated so this outline never hides it */
+@define-mixin cg-edge-forced {
+    @media (forced-colors: active) {
+        outline: 1px solid CanvasText;
+        outline-offset: -1px;
+
+        &:focus-visible {
+            outline: 2px solid Highlight;
+            outline-offset: 2px;
+        }
+    }
+}
+
+/* ───────────── 3. materials ───────────── */
+
+/* chips, pills, small floating controls (blur 14 / saturate 170%) */
+@define-mixin cg-glass-thin {
+    background-color: var(--cg-surface-thin);
+    -webkit-backdrop-filter: var(--cg-backdrop-thin);
+    backdrop-filter: var(--cg-backdrop-thin);
+    box-shadow: var(--cg-edge), var(--cg-e1);
+
+    @mixin cg-edge-forced;
+}
+
+/* list pane, room header, composer, tab bar (blur 24 / saturate 180%) */
+@define-mixin cg-glass-regular {
+    background-color: var(--cg-surface-regular);
+    -webkit-backdrop-filter: var(--cg-backdrop-regular);
+    backdrop-filter: var(--cg-backdrop-regular);
+    box-shadow: var(--cg-edge), var(--cg-e2);
+
+    @mixin cg-edge-forced;
+}
+
+/* dialogs, sheets, menus, call sheet (blur 36 / saturate 190%) */
+@define-mixin cg-glass-thick {
+    background-color: var(--cg-surface-thick);
+    -webkit-backdrop-filter: var(--cg-backdrop-thick);
+    backdrop-filter: var(--cg-backdrop-thick);
+    box-shadow: var(--cg-edge), var(--cg-e3);
+
+    @mixin cg-edge-forced;
+}
+
+/*
+ * Outgoing bubbles, primary / accept: a teal gradient with a specular edge. NO backdrop-filter (rule 2): safe for
+ * hundreds of bubbles. Text on it is --cg-on-tint (navy in light, mist in dark; >= 4.5:1 over the worst-case aurora).
+ * The normal focus colour is 1.86:1 on the light tint, so inside this scope --cg-focus (and Compound's
+ * --cpd-color-border-focused, which was resolved on <body> and would not see the change) become --cg-focus-on-tint:
+ * focusable descendants and the element itself inherit a ring that is >= 5:1 on the tint AND >= 3:1 on the glass around it.
+ */
+@define-mixin cg-glass-tint {
+    --cg-focus: var(--cg-focus-on-tint);
+    --cpd-color-border-focused: var(--cg-focus-on-tint);
+
+    background: var(--cg-surface-tint);
+    box-shadow: var(--cg-edge-tint), var(--cg-e1);
+    color: var(--cg-on-tint);
+
+    @mixin cg-edge-forced;
+}
+
+/* A tile ON glass (rule 1): translucent tint + hairline, never a blur. Incoming bubbles, list rows, amount chips. */
+@define-mixin cg-inset {
+    background-color: var(--cg-surface-inset);
+    box-shadow: var(--cg-edge-flat);
+
+    @mixin cg-edge-forced;
+}
+
+/* Modal scrim: the token alpha, with a light blur of the page behind it (the scrim is the only blurred layer then). */
+@define-mixin cg-scrim {
+    background-color: var(--cg-scrim);
+    -webkit-backdrop-filter: var(--cg-backdrop-scrim);
+    backdrop-filter: var(--cg-backdrop-scrim);
+}
+
+/* 2px ring, 2px offset, --cg-focus. Use when a surface needs its own ring (pass `outline-offset: -2px` for clipped rows). */
+@define-mixin cg-focus-ring {
+    &:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+}
+
+.cg-glass-thin {
+    @mixin cg-glass-thin;
+}
+
+.cg-glass-regular {
+    @mixin cg-glass-regular;
+}
+
+.cg-glass-thick {
+    @mixin cg-glass-thick;
+}
+
+.cg-glass-tint {
+    @mixin cg-glass-tint;
+}
+
+.cg-inset {
+    @mixin cg-inset;
+}
+
+.cg-scrim {
+    @mixin cg-scrim;
+}
+
+/* ───────────── 4. aurora wallpaper ───────────── */
+
+/*
+ * The app canvas is the aurora (section 1: body background, static). That is all a chat room gets.
+ *
+ * .cg-aurora is the same wallpaper as a layer for a screen that wants its own: it fills the nearest positioned ancestor
+ * and sits behind that ancestor's in-flow content (z-index -1, so the content needs no positioning), above the
+ * ancestor's own background. The ancestor must be a stacking context (`isolation: isolate`, or any positioned element
+ * with a z-index), or the layer would fall behind the ancestor's background. .cg-aurora--live additionally
+ * drifts, ONLY where rule 6 allows it (the sign-in page behind ONE glass card; the Home dashboard as a glow behind the
+ * greeting that no glass card overlaps): ONE pseudo-element moves with `transform` (no filter, no background-position,
+ * no blur on an animated layer), 72 s per loop, ping-pong, so it never snaps. It is paused with .cg-paused (ClarivaAurora
+ * does that while the tab is hidden OR the window has lost focus) and switched off by prefers-reduced-motion in
+ * _motion.pcss. `will-change: transform` is set on the pseudo-element only while the animation runs.
+ */
+.cg-aurora {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+    background-color: var(--cg-bg);
+    background-image: var(--cg-aurora);
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    contain: strict;
+}
+
+.cg-aurora--live {
+    background-image: none;
+
+    &::before {
+        content: "";
+        position: absolute;
+
+        /* 8% overscan > the 3.5% drift, so the layer never shows an edge */
+        inset: -8%;
+        background-image: var(--cg-aurora);
+        background-repeat: no-repeat;
+        background-size: 100% 100%;
+        animation: cg-aurora-drift 72s var(--cg-ease-in-out, ease-in-out) infinite alternate;
+
+        /* a compositor layer only while the drift runs: released again when paused, reduced-motion or switched off */
+        will-change: transform;
+    }
+
+    &.cg-paused::before {
+        animation-play-state: paused;
+        will-change: auto;
+    }
+}
+
+/* ───────────── 5. the one global visual change: the room / home pane lets the wallpaper through ───────────── */
+
+/*
+ * Stock paints $background on the pane to the right of the list (.mx_RoomView_wrapper: room, Home, wallpaper-less
+ * pages). A veil of --cg-pane-wash over the aurora replaces it: Compound's text-secondary stays >= 4.5:1 on it over the
+ * worst-case aurora point (tests/a11yContrast-test.ts), and under the opaque fallbacks it is the stock canvas again.
+ * Specificity beats the upstream `.mx_MatrixChat > :not(...)...` rule (0,5,0) with the extra `body` element.
+ *
+ * NOT touched (surface agents restyle them as glass): .mx_LeftPanel*, .mx_SpacePanel, the room header / composer / the
+ * chat list header. Clariva's own partials paint those with the Compound canvas at a higher specificity.
+ */
+:root[data-clariva] body .mx_MatrixChat_wrapper .mx_MatrixChat > .mx_RoomView_wrapper {
+    background-color: var(--cg-surface-pane);
+}
+
+/* ───────────── 6. small primitives (src/clariva/ui) ───────────── */
+
+/* CoinIcon: the face is the amber token, the rim and the "C" are currentColor (navy by default: 9:1 on amber) */
+.cg-coin {
+    flex: 0 0 auto;
+    color: var(--cg-on-amber);
+    vertical-align: middle;
+}
+
+.cg-coin__face {
+    fill: var(--cg-amber);
+}
+
+/* Skeleton: a quiet block that pulses (.cg-pulse, _motion.pcss) while data loads */
+.cg-skeleton {
+    display: block;
+    min-height: 1em;
+    background-color: var(--cg-skeleton);
+    border-radius: var(--cg-r-sm);
+}

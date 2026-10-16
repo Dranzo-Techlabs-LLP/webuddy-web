@@ -7,3 +7,10 @@ karma-reports/
 .idea/
 .tmp/
 config.json*
+# CLARIVA: the vendored SDK workspace keeps its own node_modules / tests / coverage out of the image context
+packages/*/node_modules/
+packages/*/test/
+packages/*/coverage/
+packages/*/playwright/
+tools/
+.playwright-mcp/

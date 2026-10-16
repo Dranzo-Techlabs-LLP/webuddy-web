@@ -1,0 +1,1807 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * "Clear Water" chat room (docs/clariva/DESIGN-SYSTEM.md sections 3, 5 and 6, "Room"): a floating glass header and
+ * composer over a timeline that scrolls underneath them, bubbles as soft glass drops, and the small furniture around them
+ * (date chips, unread divider, typing dots, scroll-to-latest pill, the DM intro card).
+ *
+ * Rules of this file:
+ *  - Materials come from the foundation mixins only (cg-glass-thick, cg-glass-tint, cg-inset, ...). Never a hand-written
+ *    backdrop-filter, blur() or --cg-fill-* / --cg-solid-* (a test scans for them), so the reduced-transparency,
+ *    more-contrast, forced-colors and no-backdrop-filter fallbacks come for free.
+ *  - Rule 7: the header, the composer, the scroll-to-latest pill and the sticky date chip float over scrolling content, so
+ *    they are cg-glass-thick and carry --cg-text ONLY for text (a translucent --cg-text mix for the composer placeholder
+ *    is the same token). Controls INSIDE them are cg-inset tiles: a blur inside a blur would nest (rule 1).
+ *  - Rule 2: bubbles, reactions, quotes and cards have NO backdrop-filter (translucent fill + specular edge only).
+ *  - Motion (section 5): a live message eases in (140 ms), the send button cross-fades (160 ms), the pill slides (180 ms in,
+ *    120 ms out), the typing dots loop on the compositor. Room switching, scrolling and keyboard sending have none.
+ *    Reduced motion is the token layer's job (_motion.pcss, _a11y.pcss); the loops are also switched off explicitly here.
+ *  - Specificity: every selector starts with :root[data-clariva] so it out-ranks the stock partials, which are imported
+ *    after this one. The call buttons in the header belong to _calls.pcss (imported after this file, so it wins where the
+ *    two overlap); the refund banner and the "Chat restricted" card are _chat.pcss (imported before it).
+ *  - Breakpoints 480 / 768 / 1024 / 1440. Spacing is the 4px grid (--cpd-space-*).
+ *    z: 6 status area, 10 pill, 11 date chip, 20 header + composer.
+ */
+
+/* ── local tokens ─────────────────────────────────────────────────────────────────────────────────────────────── */
+
+:root[data-clariva] .mx_MatrixChat {
+    --clariva-header-h: 64px; /* also read by _responsive.pcss */
+    --clariva-content-max: 960px; /* also read by _chat.pcss */
+    --clariva-hit: var(--clariva-tap, 44px); /* minimum touch target */
+
+    /* the floating header is flush with the top and sides of the pane (the timeline scrolls under it: a gap above it
+       would show messages passing by); its bottom corners are rounded */
+    --clariva-room-head: calc(var(--clariva-header-h) + env(safe-area-inset-top, 0px));
+
+    /* where the first message starts; the composer's gap to the sides and bottom edge (inside its measured footprint) */
+    --clariva-room-head-clear: calc(var(--clariva-room-head) + var(--cpd-space-2x));
+    --clariva-room-gutter: var(--cpd-space-3x);
+    --clariva-room-foot-gap: var(--cpd-space-3x);
+
+    /* bubbles (DESIGN-SYSTEM.md section 6): 20px drops, 6px tail / inner corners, 78% wide, 68ch at most */
+    --clariva-bubble-radius: 20px;
+    --clariva-bubble-radius-tail: 6px;
+    --clariva-bubble-max: min(78%, 68ch);
+
+    /* the lift that makes an incoming drop read as glass on the pane wash (over cg-inset; no blur) */
+    --clariva-bubble-in-lift: rgba(255, 255, 255, 0.3);
+
+    /* timestamps / quoted text / links INSIDE a bubble. _a11y.pcss points Compound's text-secondary at the meta colour for
+       the whole bubble. Incoming: --cg-text-2 and --cg-teal-text on an inset tile (>= 6.2 and 5.5:1); outgoing, below. */
+    --clariva-bubble-meta: var(--cg-text-2);
+    --clariva-bubble-link: var(--cg-teal-text);
+
+    /* the double tick of a read message (a deeper teal than the bubble); and the teal of rings (an online avatar, a
+       mention): declared once here, so it stays the same inside a cg-glass-tint scope, which re-points --cg-focus */
+    --clariva-tick-read: #00493f;
+    --clariva-ring: var(--cg-focus);
+}
+
+:root[data-clariva] body[class*="cpd-theme-dark"] .mx_MatrixChat {
+    --clariva-bubble-in-lift: rgba(16, 42, 62, 0.5);
+    --clariva-tick-read: var(--cg-teal);
+}
+
+/* ── room header: floating thick glass ───────────────────────────────────────────────────────────────────────── */
+
+:root[data-clariva] .mx_RoomHeader {
+    @mixin cg-glass-thick;
+
+    flex: 0 0 auto;
+    box-sizing: border-box;
+
+    /* env() is 0 unless the page extends under a notch (viewport-fit=cover) */
+    height: calc(var(--clariva-header-h) + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) var(--cpd-space-3x) 0;
+    gap: var(--cpd-space-2x);
+    border: 0;
+    border-radius: 0 0 var(--cg-r-lg) var(--cg-r-lg);
+    color: var(--cg-text);
+
+    /* stock animates `all` and tints the whole bar on hover; the bar itself is not clickable */
+    transition: none;
+
+    /* Avatar (40px, in its presence ring) + name: one big, calm click target for the room info. */
+    .mx_RoomHeader_infoWrapper {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 48px;
+        margin-inline-start: calc(-1 * var(--cpd-space-1x));
+        padding: var(--cpd-space-1x) var(--cpd-space-3x) var(--cpd-space-1x) var(--cpd-space-1x);
+        gap: var(--cpd-space-3x);
+        border-radius: var(--cg-r-md);
+        color: var(--cg-text);
+        touch-action: manipulation;
+
+        @mixin cg-focus-ring;
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover {
+                background-color: var(--cg-surface-inset);
+            }
+        }
+    }
+
+    .mx_RoomHeader_info {
+        min-width: 0;
+        padding-right: 0;
+    }
+
+    /* name 17 / 600 */
+    .mx_RoomHeader_heading {
+        font: var(--cpd-font-body-lg-semibold);
+        color: var(--cg-text);
+    }
+
+    /* Info / threads icon buttons: 44px round inset tiles (the call buttons are _calls.pcss, same look). Compound sets the
+       size inline, hence !important. Targets are 8px apart (the actions Flex has an 8px gap). */
+    button[style*="--cpd-icon-button-size"] {
+        @mixin cg-inset;
+        @mixin cg-pressable;
+        @mixin cg-focus-ring;
+
+        --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out);
+        --cpd-icon-button-size: var(--clariva-hit) !important;
+
+        padding: 10px;
+        border-radius: var(--cg-r-pill);
+        color: var(--cg-text);
+
+        svg {
+            color: var(--cg-text);
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover:not([aria-disabled="true"]) {
+                background-image: linear-gradient(
+                    color-mix(in srgb, var(--cg-teal) 20%, transparent),
+                    color-mix(in srgb, var(--cg-teal) 20%, transparent)
+                );
+            }
+        }
+    }
+
+    /* the phone Back arrow (_responsive.pcss draws its size and press): an inset tile like the other header controls */
+    .mx_ClarivaBackButton {
+        @mixin cg-inset;
+    }
+
+    /* Join (a call is running) and "Request refund": text pills, 44px tall, on the same centre line as the icons. */
+    button[data-size="sm"] {
+        min-block-size: var(--clariva-hit);
+        touch-action: manipulation;
+    }
+
+    /* "Request refund": a secondary pill drawn as an inset tile (text and glyph --cg-text) */
+    button.mx_ClarivaRefundHeaderButton[data-size][data-kind] {
+        @mixin cg-inset;
+        @mixin cg-pressable;
+        @mixin cg-focus-ring;
+
+        padding-inline: var(--cpd-space-4x);
+        border: 0;
+        color: var(--cg-text);
+
+        svg {
+            color: var(--cg-text);
+        }
+    }
+
+    /* The actions group: never wraps, never squeezes the name below a few characters. */
+    > .mx_Flex {
+        flex: 0 0 auto;
+        flex-wrap: nowrap;
+        gap: var(--cpd-space-2x);
+    }
+
+    /* one visible focus ring for everything interactive in the header */
+    a:focus-visible,
+    [role="button"]:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+}
+
+/* line two of the header: the role badge, then the presence line */
+:root[data-clariva] .mx_ClarivaRoomHeader_sub {
+    display: flex;
+    align-items: center;
+    gap: var(--cpd-space-2x);
+    min-width: 0;
+    margin-top: 2px;
+    font: var(--cpd-font-body-sm-regular);
+    color: var(--cg-text);
+    white-space: nowrap;
+}
+
+:root[data-clariva] .mx_ClarivaRoomHeader_presence {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--cg-text);
+}
+
+/* a small dot says "online" next to the word (the word is the information, the dot is a hint) */
+:root[data-clariva] .mx_ClarivaRoomHeader_presence[data-presence="online"]::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    margin-inline-end: 6px;
+    border-radius: 50%;
+    background-color: var(--clariva-ring);
+}
+
+/* "Consultant": a teal-wash tag (a 12 % wash and a teal ring). In the header (floating glass) the words and the shield
+   are --cg-text: a stronger wash would pull --cg-text under 4.5:1 on thick dark glass over white content (rule 7); on the
+   intro card (nothing scrolls under it) the whole tag is teal text. */
+:root[data-clariva] .mx_ClarivaRoleBadge {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--cpd-space-1x);
+    padding: 2px var(--cpd-space-2x) 2px 6px;
+    border-radius: var(--cg-r-pill);
+    background-color: color-mix(in srgb, var(--cg-teal) 12%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cg-teal) 45%, transparent);
+    color: var(--cg-text);
+    font: 600 var(--cg-fs-xs) / 16px var(--cg-font-ui);
+    white-space: nowrap;
+
+    .mx_ClarivaRoleBadge_icon {
+        flex: 0 0 auto;
+        color: var(--cg-text);
+    }
+}
+
+/* the avatar in its presence ring (header 40px, intro card 72px): a teal ring while the other party is online */
+:root[data-clariva] .mx_ClarivaRoomAvatar {
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 auto;
+    box-sizing: content-box;
+    padding: 2px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px transparent;
+
+    &[data-presence="online"] {
+        box-shadow: 0 0 0 2px var(--clariva-ring);
+    }
+
+    @media (forced-colors: active) {
+        &[data-presence="online"] {
+            outline: 2px solid Highlight;
+        }
+    }
+
+    /* the text twin of the ring (visually hidden) */
+    .mx_ClarivaRoomAvatar_sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+}
+
+/* ── the timeline floats UNDER the header and the composer ───────────────────────────────────────────────────── */
+
+:root[data-clariva] .mx_RoomView_body.mx_MainSplit_timeline {
+    position: relative;
+
+    /* the header leaves the flow: the first message pads itself clear of it (a banner or a drawer in the flow below the
+       header pads for itself, see further down) */
+    > .mx_RoomHeader {
+        position: absolute;
+        inset-block-start: 0;
+        inset-inline: 0;
+        z-index: var(--cg-z-float);
+    }
+
+    .mx_RoomView_MessageList {
+        padding-top: var(--clariva-room-head-clear);
+
+        /* the composer's whole footprint (its measured height includes the gap under it) + a breath */
+        padding-bottom: calc(var(--cg-composer-h, 0px) + var(--cpd-space-2x));
+    }
+
+    /* a refund banner / apps drawer sits in the flow, under the header: it clears the header, the list below it need not */
+    > .mx_ClarivaRefundBanner,
+    > .mx_AuxPanel:not(:empty) {
+        margin-top: calc(var(--clariva-room-head) + var(--cpd-space-2x));
+    }
+
+    &:has(> .mx_ClarivaRefundBanner),
+    &:has(> .mx_AuxPanel:not(:empty)) {
+        .mx_RoomView_MessageList {
+            padding-top: var(--cpd-space-2x);
+        }
+    }
+
+    /* the status area ("connection lost", unsent messages) lives at the foot of the column: lift it above the composer */
+    .mx_RoomView_statusArea {
+        position: relative;
+        inset-block-start: calc(-1 * var(--cg-composer-h, 0px));
+        z-index: 6; /* above the timeline, below the pill (10) and the header / composer (20) */
+        background-color: transparent;
+    }
+
+    /* chat-local toasts hang below the header */
+    .mx_ClarivaRefundToasts .mx_ClarivaRefundToast {
+        top: calc(var(--clariva-room-head) + var(--cpd-space-2x));
+    }
+}
+
+:root[data-clariva] .mx_RoomView_body[data-layout="bubble"] {
+    --RoomView_MessageList-padding: var(--cpd-space-4x);
+
+    .mx_RoomView_timeline,
+    .mx_RoomView_statusArea {
+        max-width: var(--clariva-content-max);
+    }
+
+    /* status bar ("connection lost", unsent messages): aligned with the bubbles */
+    .mx_RoomStatusBar:not(.mx_RoomStatusBar_unsentMessages) {
+        margin-left: var(--cpd-space-4x);
+        min-height: 0;
+    }
+
+    .mx_RoomStatusBar_unsentMessages > div[role="alert"] {
+        margin: var(--cpd-space-2x) var(--cpd-space-4x);
+        padding: var(--cpd-space-3x) var(--cpd-space-4x);
+        min-height: 0;
+        border-radius: var(--cg-r-sm);
+    }
+
+    .mx_RoomStatusBar_unsentButtonBar .mx_AccessibleButton {
+        min-height: var(--clariva-hit);
+        display: inline-flex;
+        align-items: center;
+    }
+}
+
+/* ── date chips and the unread divider ───────────────────────────────────────────────────────────────────────── */
+
+/* Day separators: a centred pill, no rules. The text is --cg-text (the chip sticks under the floating header, so content
+   scrolls under it: rule 7). The chip at the top becomes thick glass; the ones scrolling by are inset tiles (no blur). */
+:root[data-clariva] .mx_RoomView_body[data-layout="bubble"] .mx_TimelineSeparator {
+    justify-content: center;
+    margin: var(--cpd-space-4x) 0 var(--cpd-space-2x);
+    pointer-events: none;
+
+    > hr {
+        display: none;
+    }
+
+    .mx_DateSeparator_dateContent {
+        @mixin cg-inset;
+
+        display: inline-flex;
+        align-items: center;
+        gap: var(--cpd-space-1x);
+        padding: var(--cpd-space-1x) var(--cpd-space-3x);
+        border-radius: var(--cg-r-pill);
+        color: var(--cg-text);
+        font: var(--cpd-font-body-sm-medium);
+        pointer-events: auto;
+        transition: background-color var(--cg-dur-hover) var(--cg-ease-out);
+    }
+
+    .mx_DateSeparator_dateHeading {
+        font: inherit;
+    }
+
+    .mx_DateSeparator_chevron {
+        width: 14px;
+        height: 14px;
+        background-color: var(--cg-text);
+    }
+
+    .mx_DateSeparator_jumpToDateMenu {
+        border: 0;
+        cursor: pointer;
+
+        @mixin cg-focus-ring;
+    }
+}
+
+/* sticky: every day row sticks under the header; only the day being read shows (stickyDates.tsx sets the attributes) */
+:root[data-clariva] .mx_RoomView_body.mx_MainSplit_timeline .mx_RoomView_MessageList > li[data-clariva-date] {
+    position: sticky;
+    inset-block-start: calc(var(--clariva-room-head) + var(--cpd-space-2x));
+    z-index: 11;
+    pointer-events: none;
+
+    &[data-clariva-past] {
+        visibility: hidden;
+    }
+
+    &[data-clariva-stuck] .mx_DateSeparator_dateContent {
+        @mixin cg-glass-thick;
+
+        box-shadow: var(--cg-edge), var(--cg-e2);
+    }
+}
+
+/* Unread divider: the read marker is a teal hairline, with a small label on an inset tile (--cg-teal-text is AA there) */
+:root[data-clariva] .mx_RoomView_body[data-layout="bubble"] .mx_MessagePanel_myReadMarker {
+    position: relative;
+    overflow: visible;
+
+    hr {
+        width: 100%;
+        border: 0;
+        border-top: 1px solid var(--cg-teal-text);
+        border-radius: 1px;
+    }
+
+    .mx_ClarivaUnreadLabel {
+        @mixin cg-inset;
+
+        position: absolute;
+        inset-block-start: -10px;
+        inset-inline-end: var(--cpd-space-1x);
+        padding: 0 var(--cpd-space-2x);
+        border-radius: var(--cg-r-pill);
+        color: var(--cg-teal-text);
+        font: 600 var(--cg-fs-xs) / 20px var(--cg-font-ui);
+        pointer-events: none;
+    }
+}
+
+/* "Start of the conversation" for rooms that are not a 1:1 chat: centred, calm */
+:root[data-clariva] .mx_RoomView_body[data-layout="bubble"] .mx_NewRoomIntro {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: var(--cpd-space-8x) var(--cpd-space-4x) var(--cpd-space-6x);
+    text-align: center;
+
+    > h2 {
+        margin: var(--cpd-space-4x) 0 var(--cpd-space-1x);
+        font: var(--cpd-font-heading-md-semibold);
+        color: var(--cg-text);
+    }
+
+    > p {
+        max-width: 40ch;
+        font: var(--cpd-font-body-md-regular);
+        color: var(--cg-text-2);
+    }
+
+    .mx_NewRoomIntro_buttons {
+        justify-content: center;
+    }
+}
+
+/* ── scroll-to-latest pill and the "unread above" bar ────────────────────────────────────────────────────────── */
+
+/* A 44px round of thick glass (floating chrome, rule 7) with a chevron and the unread count on a teal badge. It sits above
+   the composer, whatever height that has. The animation is on the glass element itself, not its wrapper: an opacity below
+   1 on an ANCESTOR of a backdrop-filter would switch the frost off for the length of the animation. */
+:root[data-clariva] .mx_RoomView_timeline .mx_JumpToBottomButton {
+    right: var(--cpd-space-4x);
+    bottom: calc(var(--cg-composer-h, 0px) + var(--cpd-space-2x));
+    width: var(--clariva-hit);
+    height: var(--clariva-hit);
+    z-index: var(--clariva-z-float, 10);
+
+    .mx_JumpToBottomButton_scrollDown {
+        @mixin cg-glass-thick;
+        @mixin cg-press;
+        @mixin cg-focus-ring;
+
+        width: var(--clariva-hit);
+        height: var(--clariva-hit);
+        border: 0;
+        border-radius: 50%;
+        box-shadow: var(--cg-edge), var(--cg-e2);
+        animation: mx_ClarivaPillIn var(--cg-dur-small) var(--cg-ease-out) backwards;
+
+        &::before {
+            mask-size: 24px;
+            mask-position: center;
+            background: var(--cg-text);
+        }
+    }
+
+    .mx_JumpToBottomButton_badge {
+        position: absolute;
+        top: -6px;
+        inset-inline-end: -6px;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        box-sizing: border-box;
+        border-radius: 10px;
+        font: 600 var(--cg-fs-xs) / 20px var(--cg-font-ui);
+        font-variant-numeric: tabular-nums;
+        color: var(--cg-on-teal-deep);
+        background-color: var(--cg-teal-deep);
+        box-shadow: 0 0 0 2px var(--cg-surface-thick);
+        animation: mx_ClarivaPillIn var(--cg-dur-small) var(--cg-ease-out) backwards;
+    }
+
+    &.mx_JumpToBottomButton_highlight .mx_JumpToBottomButton_badge {
+        color: var(--cg-on-coral);
+        background-color: var(--cg-coral);
+    }
+
+    /* the copy pillExit.ts leaves behind while the room view has already removed the pill */
+    &.mx_JumpToBottomButton_leaving {
+        pointer-events: none;
+
+        .mx_JumpToBottomButton_scrollDown,
+        .mx_JumpToBottomButton_badge {
+            animation: mx_ClarivaPillOut var(--cg-dur-exit-small) var(--cg-ease-out) both;
+        }
+    }
+}
+
+:root[data-clariva] .mx_RoomView_timeline .mx_TopUnreadMessagesBar {
+    top: calc(var(--clariva-room-head) + var(--cpd-space-3x));
+    right: var(--cpd-space-4x);
+    width: var(--clariva-hit);
+    z-index: var(--clariva-z-float, 10);
+
+    /* the unread dot stays centred over the wider button (16px dot: (44 - 16) / 2) */
+    &::after {
+        left: 14px;
+        border-color: var(--cg-teal-deep);
+        background-color: var(--cg-surface-thick);
+    }
+
+    .mx_TopUnreadMessagesBar_scrollUp {
+        @mixin cg-glass-thick;
+        @mixin cg-press;
+        @mixin cg-focus-ring;
+
+        height: var(--clariva-hit);
+        border: 0;
+        border-radius: 50%;
+
+        &::before {
+            width: var(--clariva-hit);
+            height: var(--clariva-hit);
+            mask-size: 24px;
+            background: var(--cg-text);
+        }
+    }
+
+    /* Mark as read: a small x under the arrow, with a 44px invisible hit area. */
+    .mx_TopUnreadMessagesBar_markAsRead {
+        @mixin cg-inset;
+
+        position: relative;
+        width: 20px;
+        height: 20px;
+        margin: var(--cpd-space-2x) auto 0;
+        border: 0;
+        border-radius: 50%;
+
+        &::before {
+            background: var(--cg-text);
+        }
+
+        &::after {
+            content: "";
+            position: absolute;
+            inset: -12px;
+        }
+    }
+}
+
+@keyframes mx_ClarivaPillIn {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 8px, 0);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes mx_ClarivaPillOut {
+    from {
+        opacity: 1;
+        transform: none;
+    }
+
+    to {
+        opacity: 0;
+        transform: translate3d(0, 8px, 0);
+    }
+}
+
+/* ── message bubbles: soft glass drops (layout "bubble", the Clariva default) ─────────────────────────────────── */
+
+:root[data-clariva] .mx_EventTile[data-layout="bubble"],
+:root[data-clariva] .mx_GenericEventListSummary[data-layout="bubble"] {
+    --avatarSize: 30px;
+    --gutterSize: var(--cpd-space-2x);
+    --cornerRadius: var(--clariva-bubble-radius);
+    --maxWidth: var(--clariva-bubble-max);
+
+    /* The stock layout reserves a left gutter for avatars and a 60px right gutter for timestamps / receipts. Bubbles
+       now live on the full width of the timeline (inside the list padding). */
+    --EventTile_bubble-margin-inline-start: 0px;
+    --EventTile_bubble-margin-inline-end: 0px;
+}
+
+:root[data-clariva] .mx_EventTile[data-layout="bubble"] {
+    /* 12px between groups of messages, 4px inside a group; 8px after the last message of a day section. */
+    margin-top: var(--cpd-space-3x);
+    margin-bottom: 0;
+    color: var(--cg-text);
+    font: var(--cpd-font-body-md-regular);
+
+    &.mx_EventTile_continuation {
+        margin-top: var(--cpd-space-1x);
+    }
+
+    &.mx_EventTile_lastInSection {
+        margin-bottom: var(--cpd-space-2x);
+    }
+
+    /* The hover band is noise next to bubbles; a permalinked / selected message gets a soft teal wash. */
+    &:hover:not(.mx_EventTile_selected)::before {
+        background: transparent;
+    }
+
+    &.mx_EventTile_selected::before {
+        border-radius: var(--cg-r-sm);
+        background: color-mix(in srgb, var(--cg-teal) 12%, transparent);
+    }
+
+    /* Mentions keep their meaning (a message that is about me) with a 2px teal ring on the bubble instead of red text:
+       text keeps its normal colour, so the ring is not the only signal the user can read. (The ring itself is drawn with
+       the bubble, below, where its specificity out-ranks the material's shadow.) */
+    &.mx_EventTile_highlight {
+        &::before {
+            background-color: transparent;
+        }
+
+        .markdown-body,
+        .mx_EventTile_edited {
+            color: inherit;
+        }
+    }
+
+    /* ── incoming vs outgoing: the colours a bubble's contents use ── */
+    &[data-self="false"] {
+        --backgroundColor: transparent;
+    }
+
+    &[data-self="true"] {
+        --backgroundColor: transparent;
+
+        /* on the teal tint: navy (light) / mist (dark), the checked pair (>= 4.5:1 over every backdrop) */
+        --clariva-bubble-meta: var(--cg-on-tint);
+        --clariva-bubble-link: var(--cg-on-tint);
+    }
+
+    /* Sender name: only exists on the first tile of a group (the stock logic drops it on continuations), only for
+       incoming messages. 13px semibold above the bubble, aligned with its left edge. */
+    &[data-self="false"] > .mx_DisambiguatedProfile {
+        position: static;
+        display: block;
+        max-width: var(--clariva-bubble-max);
+        margin: 0 0 var(--cpd-space-1x);
+        padding: 0 var(--cpd-space-1x);
+        font: var(--cpd-font-body-sm-semibold);
+        line-height: 16px;
+
+        .mx_DisambiguatedProfile_displayName {
+            font: var(--cpd-font-body-sm-semibold);
+            line-height: 16px;
+        }
+    }
+
+    /* Avatar: incoming, first message of a group only (the stock logic omits it on continuations); own messages have
+       none (Android). It lives in the gutter to the left of the bubble, aligned with the sender name. */
+    &[data-self="false"] > .mx_EventTile_avatar {
+        top: 0;
+        left: calc(-1 * (var(--avatarSize) + var(--cpd-space-2x)));
+        border: 0;
+        border-radius: 50%;
+
+        img {
+            box-shadow: none;
+        }
+    }
+
+    &[data-self="true"] > .mx_EventTile_avatar {
+        display: none;
+    }
+
+    /* ── the bubble itself: regular text-like messages ── */
+    &:not(.mx_EventTile_noBubble):not(.mx_EventTile_info):not(.mx_EventTile_bubbleContainer):not(
+            .mx_EventTile_leftAlignedBubble
+        ) {
+        .mx_EventTile_line {
+            box-sizing: border-box;
+            width: fit-content;
+            max-width: var(--clariva-bubble-max);
+            min-width: 0;
+            margin-inline: 0;
+            gap: var(--cpd-space-2x);
+            align-items: flex-end;
+            font: var(--cpd-font-body-md-regular);
+            line-height: 22px;
+            border-radius: var(--clariva-bubble-radius);
+        }
+
+        .mx_EventTile_line:not(.mx_EventTile_mediaLine) {
+            padding: 9px 14px;
+            overflow-wrap: anywhere;
+
+            .mx_EventTile_content {
+                min-width: 0;
+                margin-inline: 0;
+                padding: 1px;
+            }
+
+            /* Timestamp: bottom-right, inside the bubble, on the last line when it fits (Android). */
+            > a {
+                position: static;
+                order: 3;
+                flex: 0 0 auto;
+                align-self: flex-end;
+                margin-bottom: 1px;
+                padding: 0;
+                line-height: 16px;
+                text-decoration: none;
+                z-index: auto;
+
+                &:empty {
+                    display: none;
+                }
+
+                .mx_MessageTimestamp {
+                    width: auto;
+                    max-width: none;
+                    font: var(--cpd-font-body-xs-regular);
+                    color: var(--clariva-bubble-meta);
+                    font-variant-numeric: tabular-nums;
+                }
+            }
+
+            .mx_MTextBody a:not(.mx_Pill):not([class*="Pill"]) {
+                color: var(--clariva-bubble-link);
+                text-decoration: underline;
+            }
+        }
+
+        /* incoming: a translucent drop with a specular top edge (an inset tile + a lift: NO backdrop-filter) */
+        &[data-self="false"] .mx_EventTile_line:not(.mx_EventTile_mediaLine) {
+            @mixin cg-inset;
+
+            background-image: linear-gradient(var(--clariva-bubble-in-lift), var(--clariva-bubble-in-lift));
+            box-shadow: var(--cg-edge), var(--cg-e1);
+            color: var(--cg-text);
+        }
+
+        /* outgoing: the teal tint, AA text (--cg-on-tint), pushed to the trailing edge */
+        &[data-self="true"] .mx_EventTile_line:not(.mx_EventTile_mediaLine) {
+            @mixin cg-glass-tint;
+        }
+
+        /* a mention: the same drop with a 2px teal ring around it */
+        &.mx_EventTile_highlight[data-self="false"] .mx_EventTile_line:not(.mx_EventTile_mediaLine) {
+            box-shadow:
+                var(--cg-edge),
+                var(--cg-e1),
+                0 0 0 2px var(--clariva-ring);
+        }
+
+        &.mx_EventTile_highlight[data-self="true"] .mx_EventTile_line:not(.mx_EventTile_mediaLine) {
+            box-shadow:
+                var(--cg-edge-tint),
+                var(--cg-e1),
+                0 0 0 2px var(--clariva-ring);
+        }
+
+        /* Corners: 20px, and 6px on the sender's side: always at the bottom (the tail of the last bubble of a group, the
+           inner corner of the others) and at the top too when the bubble continues a group. Logical properties so RTL
+           mirrors. Concentric: what sits inside (quotes, cards) is 20 - 9 = 11, so 12px. */
+        &[data-self="false"] .mx_EventTile_line {
+            border-end-start-radius: var(--clariva-bubble-radius-tail);
+        }
+
+        &[data-self="false"].mx_EventTile_continuation .mx_EventTile_line {
+            border-start-start-radius: var(--clariva-bubble-radius-tail);
+        }
+
+        &[data-self="true"] .mx_EventTile_line {
+            margin-inline-start: auto; /* outgoing: pushed to the trailing edge */
+            border-end-end-radius: var(--clariva-bubble-radius-tail);
+        }
+
+        &[data-self="true"].mx_EventTile_continuation .mx_EventTile_line {
+            border-start-end-radius: var(--clariva-bubble-radius-tail);
+        }
+
+        /* A reply stacks the quote above the text: the quote takes a row of its own, the text and the time share the next. */
+        &[data-has-reply="true"] > .mx_EventTile_line {
+            flex-flow: row wrap;
+            align-items: flex-end;
+
+            > .mx_ReplyChain {
+                flex: 0 0 100%;
+            }
+
+            > .mx_EventTile_content,
+            > .mx_EventTile_body {
+                flex: 1 1 0;
+            }
+        }
+
+        /* Reply quote: a teal rail and an inset tile (12px: concentric inside the 20px drop) */
+        .mx_ReplyChain {
+            margin: 0 0 var(--cpd-space-1x);
+            padding: var(--cpd-space-1x) var(--cpd-space-2x) var(--cpd-space-1x) var(--cpd-space-3x);
+            border-left-width: 0;
+            border-radius: var(--cg-r-sm);
+            background-color: color-mix(in srgb, var(--cg-teal) 14%, transparent);
+            box-shadow: inset 3px 0 0 var(--cg-teal);
+
+            .mx_ReplyTile > a {
+                color: var(--clariva-bubble-meta);
+
+                &:hover {
+                    color: inherit;
+                }
+            }
+        }
+
+        &[data-self="true"] .mx_ReplyChain {
+            background-color: color-mix(in srgb, var(--cg-on-tint) 10%, transparent);
+            box-shadow: inset 3px 0 0 var(--cg-on-tint);
+        }
+    }
+
+    /* Timestamp tick of my own message: inline, after the time (the SVG shape differs per state, colour is a hint) */
+    .mx_ClarivaTicks {
+        display: inline-flex;
+        order: 4;
+        flex: 0 0 auto;
+        align-self: flex-end;
+        margin-bottom: 1px;
+        color: var(--cg-on-tint);
+        line-height: 0;
+
+        &[data-state="read"] {
+            color: var(--clariva-tick-read);
+        }
+
+        svg {
+            width: 16px;
+            height: 16px;
+        }
+    }
+
+    /* Reactions: glass-pill look WITHOUT blur (there can be many): an inset tile, a 32px pill; selected = teal wash + edge */
+    .mx_ReactionsRow {
+        max-width: var(--clariva-bubble-max);
+        margin: var(--cpd-space-1x) 0 0;
+        gap: var(--cpd-space-2x);
+    }
+
+    &[data-self="true"] .mx_ReactionsRow {
+        margin-inline-start: auto;
+        justify-content: flex-end;
+    }
+
+    .mx_ReactionsRowButton {
+        @mixin cg-inset;
+        @mixin cg-press;
+        @mixin cg-focus-ring;
+
+        min-height: 32px;
+        padding: 0 var(--cpd-space-3x);
+        border: 0;
+        border-radius: var(--cg-r-pill);
+        color: var(--cg-text);
+        font: var(--cpd-font-body-sm-medium);
+        font-variant-numeric: tabular-nums;
+        touch-action: manipulation;
+
+        &.mx_ReactionsRowButton_selected {
+            background-image: linear-gradient(
+                color-mix(in srgb, var(--cg-teal) 22%, transparent),
+                color-mix(in srgb, var(--cg-teal) 22%, transparent)
+            );
+            box-shadow: var(--cg-edge-tint);
+        }
+    }
+
+    /* Link preview: an inset card, 12px inside the drop (concentric), the title in the bubble's text colour */
+    .mx_LinkPreviewWidget {
+        margin: var(--cpd-space-2x) 0 var(--cpd-space-1x);
+        padding: var(--cpd-space-2x) var(--cpd-space-3x);
+        border-inline-start: 0;
+        border-radius: var(--cg-r-sm);
+        background-color: color-mix(in srgb, var(--cg-teal) 12%, transparent);
+        box-shadow: inset 3px 0 0 var(--cg-teal);
+        color: var(--clariva-bubble-meta);
+
+        .mx_LinkPreviewWidget_title {
+            color: inherit;
+        }
+    }
+
+    &[data-self="true"] .mx_LinkPreviewWidget {
+        background-color: color-mix(in srgb, var(--cg-on-tint) 10%, transparent);
+        box-shadow: inset 3px 0 0 var(--cg-on-tint);
+    }
+
+    /* Images, video, files: inset tiles with a 16px radius. Media has no bubble around it. */
+    &:has(.mx_EventTile_mediaLine) {
+        --cornerRadius: var(--cg-r-md);
+    }
+
+    .mx_MImageBody .mx_MImageBody_thumbnail_container,
+    .mx_MVideoBody .mx_MVideoBody_container {
+        box-shadow: var(--cg-edge-flat);
+    }
+
+    /* A file / audio attachment is its own tile: inset (incoming) or tint (outgoing), the text colour of its fill */
+    &[data-self="false"] .mx_MediaBody {
+        @mixin cg-inset;
+
+        color: var(--cg-text);
+    }
+
+    &[data-self="true"] .mx_MediaBody {
+        @mixin cg-glass-tint;
+    }
+
+    .mx_MediaBody {
+        padding: var(--cpd-space-2x) var(--cpd-space-3x);
+        border-radius: var(--cg-r-md);
+    }
+
+    /* Read receipts / sent state: tidy row under the bubble, aligned to the bubble's side. */
+    .mx_EventTile_msgOption {
+        display: flex;
+        justify-content: flex-start;
+        margin-top: var(--cpd-space-1x);
+
+        .mx_ReadReceiptGroup {
+            position: relative;
+            inset: auto;
+        }
+    }
+
+    &[data-self="true"] .mx_EventTile_msgOption {
+        justify-content: flex-end;
+    }
+}
+
+/* ── a message that arrives live eases in: 140 ms, 6px + fade (EventTile adds the class only for those) ────────── */
+
+:root[data-clariva] .mx_EventTile.mx_EventTile_clarivaLive[data-layout="bubble"] {
+    animation: mx_ClarivaMessageIn 140ms var(--cg-ease-out) backwards;
+}
+
+@keyframes mx_ClarivaMessageIn {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 6px, 0);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* Incoming messages in GROUP rooms (the header shows the member face pile) leave a gutter for the avatar. */
+:root[data-clariva]
+    .mx_RoomView_body[data-layout="bubble"]:has(.mx_RoomHeader .mx_FacePile)
+    .mx_EventTile[data-layout="bubble"][data-self="false"]:not(.mx_EventTile_info):not(
+        .mx_EventTile_bubbleContainer
+    ):not(.mx_EventTile_leftAlignedBubble) {
+    margin-inline-start: calc(var(--avatarSize) + var(--cpd-space-2x));
+}
+
+/* DMs (no member face pile in the header): the other person's name and avatar are redundant, Android shows neither. */
+:root[data-clariva]
+    .mx_RoomView_body[data-layout="bubble"]:not(:has(.mx_RoomHeader .mx_FacePile))
+    .mx_EventTile[data-layout="bubble"][data-self="false"]:not(.mx_EventTile_info):not(
+        .mx_EventTile_bubbleContainer
+    ):not(.mx_EventTile_leftAlignedBubble) {
+    > .mx_EventTile_avatar,
+    > .mx_DisambiguatedProfile {
+        display: none;
+    }
+}
+
+/* System events (joined, invited, topic changed...): small, quiet, centred; no avatar. */
+:root[data-clariva] .mx_EventTile.mx_EventTile_info[data-layout="bubble"] {
+    justify-content: center;
+    margin-block: var(--cpd-space-1x);
+    padding: var(--cpd-space-1x) 0;
+    font: var(--cpd-font-body-sm-regular);
+    color: var(--cg-text-2);
+    text-align: center;
+
+    .mx_EventTile_avatar {
+        display: none;
+    }
+
+    .mx_EventTile_line,
+    .mx_EventTile_info {
+        min-width: 0;
+        width: auto;
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+        font: var(--cpd-font-body-sm-regular);
+        color: var(--cg-text-2);
+
+        /* stock bubble layout paints every .mx_EventTile_line as a bubble; system events are plain centred text */
+        background: transparent !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        text-align: center;
+        justify-content: center; /* the line is a flex row; text-align alone leaves it hugging the left edge */
+    }
+
+    /* Their timestamps would sit in the middle of a centred line; the day separator already tells the date. */
+    .mx_EventTile_line > a {
+        display: none;
+    }
+}
+
+/* Collapsed run of system events ("Asha created this DM, ... expand"): one centred line + a 44px "expand" target. */
+:root[data-clariva] .mx_GenericEventListSummary[data-layout="bubble"] {
+    margin: var(--cpd-space-2x) 0;
+    font: var(--cpd-font-body-sm-regular);
+    color: var(--cg-text-2);
+
+    &[data-expanded="false"] {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: var(--cpd-space-1x) var(--cpd-space-2x);
+        text-align: center;
+    }
+
+    &[data-expanded="true"] {
+        align-items: stretch;
+    }
+
+    .mx_EventTile_line {
+        min-width: 0;
+        padding: 0;
+    }
+
+    .mx_EventTile_info {
+        color: var(--cg-text-2);
+    }
+
+    .mx_GenericEventListSummary_toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: var(--clariva-hit);
+        padding: 0 var(--cpd-space-3x);
+        margin: 0 auto;
+        border-radius: var(--cg-r-xs);
+        font: var(--cpd-font-body-sm-medium);
+        color: var(--cg-text-2);
+        text-decoration: underline;
+        touch-action: manipulation;
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover {
+                color: var(--cg-text);
+            }
+        }
+
+        @mixin cg-focus-ring;
+    }
+}
+
+/* Cards in the timeline (encryption / created notices): a quiet inset tile */
+:root[data-clariva] .mx_RoomView_body[data-layout="bubble"] .mx_EventTileBubble {
+    @mixin cg-inset;
+
+    border-radius: var(--cg-r-md);
+    color: var(--cg-text);
+
+    .mx_EventTileBubble_title {
+        color: var(--cg-text);
+    }
+
+    .mx_EventTileBubble_subtitle {
+        color: var(--cg-text-2);
+    }
+}
+
+/* ── hover toolbar of a message (react, reply, thread, options) ─────────────────────────────────────────────────── */
+
+/* A small floating glass bar. It floats over the neighbouring bubbles, so it is thick glass (rule 7); it is not inside
+   a blurred ancestor (bubbles have no blur). Visibility stays the stock logic: hover, focus within, keyboard modality.
+   44px touch sizes on coarse pointers / phones are _a11y.pcss's; on a mouse the buttons are 32px with a 44px hit area. */
+:root[data-clariva] .mx_EventTile .mx_MessageActionBar {
+    @mixin cg-glass-thick;
+
+    --MessageActionBar-item-hover-borderRadius: var(--cg-r-pill);
+    --MessageActionBar-item-hover-background: color-mix(in srgb, var(--cg-teal) 18%, transparent);
+
+    border: 0;
+    border-radius: var(--cg-r-md);
+    box-shadow: var(--cg-edge), var(--cg-e2);
+    color: var(--cg-text);
+
+    .mx_MessageActionBar_iconButton {
+        color: var(--cg-text);
+
+        &:hover {
+            color: var(--cg-text);
+        }
+    }
+
+    > * {
+        &:hover {
+            background: transparent;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover {
+                background: var(--MessageActionBar-item-hover-background);
+            }
+        }
+    }
+
+    @media (hover: hover) and (pointer: fine) and (min-width: 769px) {
+        --MessageActionBar-size-button: 32px;
+        --MessageActionBar-size-box: 36px;
+
+        top: -34px;
+
+        /* a 44px hit area around each 32px button */
+        .mx_MessageActionBar_iconButton::after {
+            content: "";
+            position: absolute;
+            inset: -6px;
+        }
+    }
+}
+
+/* ── DM intro card: one thick glass lens at the top of a 1:1 chat ──────────────────────────────────────────────── */
+
+:root[data-clariva] .mx_ClarivaDmIntro {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 440px;
+    margin-inline: auto;
+
+    .mx_ClarivaDmIntro_card {
+        @mixin cg-glass-thick;
+
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--cpd-space-3x);
+        box-sizing: border-box;
+        width: 100%;
+        padding: var(--cpd-space-8x) var(--cpd-space-6x) var(--cpd-space-6x);
+        border-radius: var(--cg-r-xl);
+        color: var(--cg-text);
+        text-align: center;
+    }
+
+    /* the 72px avatar in its ring (RoomAvatarRing sets the size) */
+    .mx_ClarivaRoomAvatar {
+        padding: 3px;
+    }
+
+    .mx_ClarivaDmIntro_name {
+        @mixin cg-display;
+
+        max-width: 100%;
+        margin: var(--cpd-space-1x) 0 0;
+        font-size: var(--cg-fs-2xl);
+        color: var(--cg-text);
+        overflow-wrap: anywhere;
+        text-wrap: balance;
+    }
+
+    /* the role badge on its own row, the rate chip on its own row under it */
+    .mx_ClarivaDmIntro_tags {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--cpd-space-2x);
+    }
+
+    .mx_ClarivaRoleBadge {
+        padding: 3px var(--cpd-space-3x) 3px var(--cpd-space-2x);
+        color: var(--cg-teal-text);
+        font-size: var(--cg-fs-sm);
+
+        .mx_ClarivaRoleBadge_icon {
+            color: var(--cg-teal-text);
+        }
+    }
+
+    /* "100 credits per 24 h chat": the amber wash with --cg-amber-text (6.5:1) and a coin, in the UI face (tabular) */
+    .mx_ClarivaDmIntro_rate {
+        @mixin cg-numerals;
+
+        display: inline-flex;
+        align-items: center;
+        gap: var(--cpd-space-2x);
+        padding: 4px var(--cpd-space-3x) 4px var(--cpd-space-2x);
+        border-radius: var(--cg-r-pill);
+        background-color: var(--cg-amber-wash);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cg-amber) 45%, transparent);
+        color: var(--cg-amber-text);
+        font-size: var(--cg-fs-sm);
+        font-weight: 600;
+        line-height: 18px;
+    }
+
+    .mx_ClarivaDmIntro_privacy {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--cpd-space-2x);
+        margin: 0;
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        line-height: 18px;
+    }
+
+    .mx_ClarivaDmIntro_privacyIcon {
+        flex: 0 0 auto;
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+        color: var(--cg-teal-text);
+    }
+
+    /* Voice / Video: two 44px+ pills. Inset tiles (the card is thick glass: no second blur), an icon and a label. */
+    .mx_ClarivaDmIntro_actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: var(--cpd-space-3x);
+        width: 100%;
+        margin-top: var(--cpd-space-1x);
+    }
+
+    .mx_ClarivaDmIntro_action {
+        @mixin cg-inset;
+        @mixin cg-pressable;
+        @mixin cg-focus-ring;
+
+        --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out);
+
+        display: inline-flex;
+        flex: 1 1 128px;
+        align-items: center;
+        justify-content: center;
+        gap: var(--cpd-space-2x);
+        box-sizing: border-box;
+        max-width: 180px;
+        min-height: var(--clariva-hit);
+        padding: 0 var(--cpd-space-5x);
+        border: 0;
+        border-radius: var(--cg-r-pill);
+        color: var(--cg-text);
+        font: 600 var(--cg-fs-md) / 20px var(--cg-font-ui);
+        cursor: pointer;
+        appearance: none;
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover:not(:disabled) {
+                background-image: linear-gradient(
+                    color-mix(in srgb, var(--cg-teal) 18%, transparent),
+                    color-mix(in srgb, var(--cg-teal) 18%, transparent)
+                );
+            }
+        }
+
+        &:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    }
+
+    .mx_ClarivaDmIntro_actionIcon {
+        flex: 0 0 auto;
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
+        color: var(--cg-teal-text);
+    }
+
+    /* an empty chat's gentle prompt, on the pane under the lens: --cg-text-2 is AA on the pane wash */
+    .mx_ClarivaDmIntro_hello {
+        margin: var(--cpd-space-5x) 0 0;
+        color: var(--cg-text-2);
+        font: var(--cpd-font-body-md-regular);
+        text-align: center;
+        overflow-wrap: anywhere;
+    }
+
+    /* the stock explanation stays, as small quiet text */
+    .mx_ClarivaDmIntro_note {
+        max-width: 40ch;
+        margin-top: var(--cpd-space-4x);
+        color: var(--cg-text-2);
+        font: var(--cpd-font-body-sm-regular);
+        text-align: center;
+
+        p {
+            margin: 0 0 var(--cpd-space-2x);
+            font: inherit;
+            color: inherit;
+        }
+
+        b {
+            color: var(--cg-text);
+            font-weight: 600;
+        }
+    }
+}
+
+/* the stock intro block of a 1:1 chat is replaced by the card: keep its margins from stacking onto it */
+:root[data-clariva] .mx_RoomView_body .mx_NewRoomIntro:has(> .mx_ClarivaDmIntro) {
+    margin-block: var(--cpd-space-6x) var(--cpd-space-4x);
+}
+
+/* ── typing indicator: three dots in a pill ──────────────────────────────────────────────────────────────────── */
+
+:root[data-clariva] .mx_RoomView_body[data-layout="bubble"] .mx_WhoIsTypingTile {
+    display: flex;
+    align-items: center;
+    gap: var(--cpd-space-2x);
+    margin-left: 0;
+    padding-top: var(--cpd-space-2x);
+
+    .mx_WhoIsTypingTile_avatars {
+        flex: 0 0 auto;
+        text-align: start;
+    }
+
+    /* an inset pill, with the tail corner on the sender's side like a bubble */
+    .mx_WhoIsTypingTile_dots {
+        @mixin cg-inset;
+
+        display: inline-flex;
+        align-items: center;
+        gap: var(--cpd-space-1x);
+        padding: 12px var(--cpd-space-3x);
+        border-radius: var(--clariva-bubble-radius);
+        border-end-start-radius: var(--clariva-bubble-radius-tail);
+        background-image: linear-gradient(var(--clariva-bubble-in-lift), var(--clariva-bubble-in-lift));
+
+        span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--cg-text-2);
+            animation: mx_ClarivaTyping 1s var(--cg-ease-in-out) infinite;
+        }
+
+        span:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        span:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+    }
+
+    .mx_WhoIsTypingTile_label {
+        flex: 0 1 auto;
+        color: var(--cg-text-2);
+        font: var(--cpd-font-body-sm-medium);
+    }
+}
+
+@keyframes mx_ClarivaTyping {
+    0%,
+    60%,
+    100% {
+        opacity: 0.4;
+        transform: translate3d(0, 0, 0);
+    }
+
+    30% {
+        opacity: 1;
+        transform: translate3d(0, -3px, 0);
+    }
+}
+
+/* ── composer: a floating pill of thick glass ───────────────────────────────────────────────────────────────── */
+
+/* The shell (.mx_MessageComposer) is an invisible footprint: the gap around the pill is part of it, so the height the
+   timeline measures (ComposerMeasure -> --cg-composer-h) is everything the composer covers. Only the pill takes clicks. */
+:root[data-clariva] .mx_MessageComposer {
+    box-sizing: border-box;
+    margin-right: 0;
+    padding: 0 var(--clariva-room-gutter) var(--clariva-room-foot-gap);
+    background: none;
+    pointer-events: none;
+
+    > * {
+        pointer-events: auto;
+    }
+
+    .mx_SendMessageComposer {
+        align-self: center;
+        margin-right: 0;
+
+        /* 16px: iOS zooms into smaller inputs. Line height 24 -> a 44px field with the padding below. */
+        font: var(--cpd-font-body-lg-regular);
+        line-height: 24px;
+
+        .mx_BasicMessageComposer {
+            min-height: 0;
+
+            .mx_BasicMessageComposer_input {
+                max-height: 140px; /* ~5 lines, then it scrolls */
+                margin: 0;
+                padding: 10px 0;
+                color: var(--cg-text);
+                caret-color: var(--cg-focus);
+            }
+        }
+    }
+
+    /* Placeholder = Android's "Message" (the stock text stays the accessible name of the textbox). It is --cg-text at
+       88 %: a floating bar carries only that token (rule 7), and the mix stays >= 4.5:1 over the extremes (a 70 % mix is 3.7:1
+       on thick dark glass over white content). */
+    .mx_MessageComposer_wrapper:not(:has(.mx_ReplyPreview)) .mx_BasicMessageComposer_inputEmpty {
+        --placeholder: "Message" !important;
+    }
+
+    .mx_BasicMessageComposer .mx_BasicMessageComposer_inputEmpty > :first-child::before {
+        color: color-mix(in srgb, var(--cg-text) 88%, transparent);
+    }
+
+    /* Autocomplete (mentions, emoji, commands) opens above the pill as an opaque card (it sits inside blurred glass, so
+       it is not frosted again) and may be wider than the input column; rows are 44px. */
+    .mx_Autocomplete {
+        bottom: var(--cpd-space-3x);
+        width: min(560px, calc(100vw - var(--cpd-space-6x)));
+        margin-inline-start: calc(-1 * var(--cpd-space-5x));
+        border: 0;
+        border-radius: var(--cg-r-md);
+        background-color: var(--cpd-color-bg-canvas-default);
+        box-shadow: var(--cg-edge-flat), var(--cg-e3);
+        color: var(--cpd-color-text-primary);
+    }
+
+    .mx_Autocomplete_Completion_block,
+    .mx_Autocomplete_Completion_pill {
+        min-height: var(--clariva-hit);
+        height: auto;
+    }
+
+    .mx_MessageComposer_e2eIconWrapper {
+        height: auto;
+    }
+
+    .mx_MessageComposer_e2eIcon.mx_E2EIcon {
+        left: var(--cpd-space-4x);
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    /* 44px targets with 8px between them (the stock narrow mode keeps only emoji + more below 500px). */
+    .mx_MessageComposer_actions {
+        flex: 0 0 auto;
+        gap: var(--cpd-space-2x);
+    }
+
+    /* Emoji / attach / more: 44px round targets, 24px glyphs in --cg-text (stock: 26px boxes with a 20px glyph). */
+    .mx_MessageComposer_button,
+    .mx_EmojiButton {
+        --size: var(--clariva-hit);
+
+        width: var(--clariva-hit);
+        padding: 0;
+        border-radius: 50%;
+        touch-action: manipulation;
+
+        &::before {
+            top: 10px;
+            left: 10px;
+            width: 24px;
+            height: 24px;
+            background-color: var(--cg-text);
+        }
+
+        /* the stock hover tint is not gated by a real hover: a touch screen would keep it */
+        &:hover::after {
+            background: transparent;
+        }
+
+        &:hover::before {
+            background-color: var(--cg-text);
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover::after {
+                background: var(--cg-surface-inset);
+            }
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--cg-focus);
+            outline-offset: -2px;
+        }
+    }
+
+    .mx_MessageComposer_button_highlight,
+    .mx_EmojiButton_highlight {
+        background: var(--cg-surface-inset);
+
+        &::before {
+            background-color: var(--cg-text) !important;
+        }
+    }
+
+    /* Voice message recording keeps working inside the pill. */
+    .mx_VoiceRecordComposerTile_stop,
+    .mx_VoiceRecordComposerTile_delete {
+        touch-action: manipulation;
+    }
+
+    .mx_MessageComposer_noperm_error {
+        height: auto;
+        min-height: 52px;
+        padding: 0 var(--cpd-space-4x);
+        color: var(--cg-text);
+        font: var(--cpd-font-body-md-regular);
+        font-style: normal;
+    }
+
+    .mx_MessageComposer_replaced_wrapper {
+        padding: var(--cpd-space-3x) var(--cpd-space-4x);
+        color: var(--cg-text);
+    }
+}
+
+/* in the room: the shell leaves the flow and sits over the foot of the timeline (threads keep an in-flow composer) */
+:root[data-clariva] .mx_RoomView_body > .mx_MessageComposer {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: var(--cg-z-float);
+    width: min(100%, calc(var(--clariva-content-max) + 2 * var(--clariva-room-gutter)));
+    margin-inline: auto;
+}
+
+/* the pill: 52px min height, growing to ~5 lines; a 2px focus ring only while focus is inside */
+:root[data-clariva] .mx_MessageComposer .mx_MessageComposer_wrapper {
+    @mixin cg-glass-thick;
+
+    position: relative;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 26px;
+    color: var(--cg-text);
+
+    &:focus-within {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+}
+
+/* [e2e] [input ........] [emoji] [attach] [more] [send / mic] */
+:root[data-clariva] .mx_MessageComposer .mx_MessageComposer_row {
+    position: relative;
+    box-sizing: border-box;
+    min-height: 52px;
+    padding: 4px 4px 4px var(--cpd-space-5x);
+    gap: var(--cpd-space-1x);
+    align-items: flex-end;
+}
+
+:root[data-clariva] .mx_MessageComposer.mx_MessageComposer_e2eStatus .mx_MessageComposer_row {
+    padding-left: var(--cpd-space-10x);
+}
+/* Reply preview: an inset card with a teal rail at the top of the pill (14px: concentric inside the 26px pill + 8px) */
+:root[data-clariva] .mx_MessageComposer .mx_ReplyPreview {
+    @mixin cg-inset;
+
+    max-height: 40vh;
+    max-height: 40dvh;
+    margin: var(--cpd-space-2x) var(--cpd-space-2x) 0;
+    border: 0;
+    border-radius: 18px;
+    box-shadow:
+        var(--cg-edge-flat),
+        inset 3px 0 0 var(--cg-teal);
+    color: var(--cg-text);
+
+    .mx_ReplyPreview_section {
+        padding: var(--cpd-space-2x) var(--cpd-space-3x);
+        border-bottom: 0;
+    }
+
+    .mx_ReplyPreview_header {
+        align-items: center;
+        font: var(--cpd-font-body-sm-semibold);
+        color: var(--cg-text);
+        opacity: 1;
+    }
+
+    /* 44px hit area around the 18px cross. */
+    .mx_ReplyPreview_header_cancel {
+        width: var(--clariva-hit);
+        height: var(--clariva-hit);
+        min-width: var(--clariva-hit);
+        min-height: var(--clariva-hit);
+        margin: calc(-1 * var(--cpd-space-3x)) calc(-1 * var(--cpd-space-2x)) calc(-1 * var(--cpd-space-3x)) 0;
+        mask-size: 18px;
+        background-color: var(--cg-text);
+        touch-action: manipulation;
+    }
+}
+
+/* The one round action: a Deep Teal circle, the microphone while there is nothing to send, the send arrow once there is.
+   The two glyphs CROSS-FADE (opacity only, 160 ms); Enter in the composer sets data-instant, which removes the fade. */
+:root[data-clariva] .mx_ClarivaComposerAction_wrap {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+}
+
+:root[data-clariva] .mx_MessageComposer_sendMessage.mx_ClarivaComposerAction {
+    @mixin cg-press;
+    @mixin cg-focus-ring;
+
+    --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out);
+
+    position: relative;
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: var(--clariva-hit);
+    height: var(--clariva-hit);
+    padding: 0;
+    border-radius: 50%;
+    background-color: var(--cg-teal-deep);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.22),
+        var(--cg-e1);
+    color: var(--cg-on-teal-deep);
+    cursor: pointer;
+
+    /* the stock send glyph is drawn by this pseudo-element: the two inline icons replace it */
+    &::before {
+        content: none;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover {
+            background-color: color-mix(in srgb, var(--cg-teal-deep) 86%, black);
+        }
+    }
+
+    .mx_ClarivaComposerAction_icon {
+        position: absolute;
+        inset: 0;
+        width: 24px;
+        height: 24px;
+        margin: auto;
+        fill: currentColor;
+        opacity: 0;
+        transition: opacity var(--cg-dur-hover) var(--cg-ease-out);
+        pointer-events: none;
+    }
+
+    &[data-mode="mic"] .mx_ClarivaComposerAction_mic,
+    &[data-mode="send"] .mx_ClarivaComposerAction_send {
+        opacity: 1;
+    }
+
+    /* a keyboard send clears the composer: the circle changes at once */
+    &[data-instant] .mx_ClarivaComposerAction_icon {
+        transition: none;
+    }
+}
+
+/* "Chat restricted": the gate replaces the pill's contents with a glass banner (an inset card in the same thick glass) */
+:root[data-clariva] .mx_MessageComposer .mx_MessageComposer_wrapper:has(.mx_ClarivaChatRestricted) {
+    border-radius: var(--cg-r-lg);
+
+    .mx_MessageComposer_row {
+        min-height: 0;
+        padding: var(--cpd-space-2x);
+    }
+}
+
+/* ── phones and small tablets ────────────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    :root[data-clariva] .mx_MatrixChat {
+        --clariva-header-h: 56px;
+        --clariva-room-gutter: var(--cpd-space-2x);
+        --clariva-room-foot-gap: var(--cpd-space-2x);
+        --clariva-bubble-max: min(84%, 68ch);
+    }
+
+    /* flush with the screen and the notch, with soft bottom corners */
+    :root[data-clariva] .mx_RoomHeader {
+        padding: env(safe-area-inset-top, 0px) var(--cpd-space-2x) 0;
+
+        /* Android has no threads button; on phones the room needs the width for the name. */
+        button[aria-label="Threads"] {
+            display: none;
+        }
+    }
+
+    :root[data-clariva] .mx_RoomView_body[data-layout="bubble"] {
+        --RoomView_MessageList-padding: var(--cpd-space-3x);
+    }
+
+    :root[data-clariva] .mx_MessageComposer {
+        padding-inline: var(--cpd-space-2x);
+    }
+
+    :root[data-clariva] .mx_RoomView_body > .mx_MessageComposer {
+        width: 100%;
+    }
+
+    :root[data-clariva] .mx_ClarivaDmIntro .mx_ClarivaDmIntro_card {
+        padding-inline: var(--cpd-space-4x);
+    }
+}
+
+@media (max-width: 480px) {
+    /* "Request refund" becomes an icon button; the label stays in the DOM for assistive tech. */
+    :root[data-clariva] .mx_RoomHeader button.mx_ClarivaRefundHeaderButton[data-size][data-kind] {
+        gap: 0;
+        inline-size: var(--clariva-hit);
+        min-inline-size: var(--clariva-hit);
+        padding: 0;
+        border-radius: var(--cg-r-pill);
+        font-size: 0;
+        line-height: 0;
+
+        svg {
+            width: 24px;
+            height: 24px;
+        }
+    }
+
+    :root[data-clariva] .mx_RoomView_body[data-layout="bubble"] .mx_NewRoomIntro {
+        margin-top: var(--cpd-space-6x);
+    }
+}
+
+@media (min-width: 1440px) {
+    :root[data-clariva] .mx_MatrixChat {
+        --clariva-content-max: 1040px;
+    }
+}
+
+/* ── reduced motion: the loops and entrances are switched off outright (the transitions are _a11y.pcss's) ────── */
+
+@media (prefers-reduced-motion: reduce) {
+    :root[data-clariva] .mx_EventTile.mx_EventTile_clarivaLive[data-layout="bubble"],
+    :root[data-clariva] .mx_RoomView_timeline .mx_JumpToBottomButton .mx_JumpToBottomButton_scrollDown,
+    :root[data-clariva] .mx_RoomView_timeline .mx_JumpToBottomButton .mx_JumpToBottomButton_badge {
+        animation: none;
+    }
+
+    :root[data-clariva] .mx_WhoIsTypingTile .mx_WhoIsTypingTile_dots span {
+        animation: none;
+        opacity: 0.7;
+    }
+}

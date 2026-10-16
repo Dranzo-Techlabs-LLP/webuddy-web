@@ -16,10 +16,8 @@
         "cannot_load_config": "Konfigurationsdatei kann nicht geladen werden: Bitte aktualisiere die Seite, um es erneut zu versuchen.",
         "invalid_configuration_mixed_server": "Ungültige Konfiguration: default_hs_url kann nicht zeitgleich mit default_server_name oder default_server_config festgelegt werden",
         "invalid_configuration_no_server": "Ungültige Konfiguration: Es wurde kein Standardserver angegeben.",
-        "invalid_json": "Deine Element-Konfiguration enthält ungültiges JSON. Bitte korrigiere das Problem und lade die Seite neu.",
         "invalid_json_detail": "Die Nachricht des Parsers ist: %(message)s",
-        "invalid_json_generic": "Ungültiges JSON",
-        "misconfigured": "Dein Element ist falsch konfiguriert"
+        "invalid_json_generic": "Ungültiges JSON"
     },
     "incompatible_browser": {
         "title": "Nicht unterstützter Browser"
@@ -27,6 +25,5 @@
     "powered_by_matrix": "Betrieben mit Matrix",
     "powered_by_matrix_with_logo": "Dezentralisierter, verschlüsselter Chat &amp; Zusammenarbeit unterstützt von $matrixLogo",
     "unknown_device": "Unbekanntes Gerät",
-    "web_default_device_name": "%(appName)s: %(browserName)s auf %(osName)s",
-    "welcome_to_element": "Willkommen bei Element"
+    "web_default_device_name": "%(appName)s: %(browserName)s auf %(osName)s"
 }

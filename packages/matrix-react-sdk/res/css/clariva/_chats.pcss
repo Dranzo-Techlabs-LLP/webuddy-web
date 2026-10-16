@@ -1,0 +1,1518 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Clear Water shell: the glass space rail, the glass Chats list pane, and the Home dashboard
+ * (src/clariva/components/chats, components/home; spec: docs/clariva/DESIGN-SYSTEM.md sections 3 and 6, "Shell / Chats").
+ * Layout of the shell itself (phone / tablet widths, the tab bar) is in _responsive.pcss; this file is everything inside
+ * the rail, the list column and the Home pane at every width.
+ *
+ * Conventions: every rule is scoped under `:root[data-clariva]` (set by isClarivaEnabled()), so stock Element is
+ * untouched. This partial is imported BEFORE the upstream stylesheets, so the selectors repeat the upstream ancestry to
+ * out-rank them instead of relying on source order. Materials come from the mixins of _glass.pcss, motion from
+ * _motion.pcss, type from _fonts.pcss; nothing here writes a blur, a --cg-fill-* or a --cg-solid-* by hand.
+ *
+ * The material map of this surface:
+ *   - the RAIL and the LIST PANE are cg-glass-regular: nothing scrolls under them (the list scrolls INSIDE its pane), so
+ *     rule 7 (floating chrome) does not apply. On a phone the list pane is the pane wash instead (no blur), because the
+ *     tab bar floating over it is the one blur there (rule 1: never nest).
+ *   - everything INSIDE those panes (search pill, coin chip, + button, filter chips, rows) is cg-inset or cg-glass-tint:
+ *     a translucent fill with a specular edge and NO blur (rules 1 and 2). The brief asks for glass-thin on the search
+ *     pill, the coin chip and the + button; inside a glass pane that would be a nested backdrop-filter, so they are inset
+ *     tiles with the same specular edge (`--cg-edge`) and soft shadow (`--cg-e1`), which reads the same.
+ *   - the HOME dashboard sits on the pane wash: the wallet card is cg-glass-thick, the three quick tiles cg-glass-thin
+ *     (at most 6 blurs are ever visible: rail, list pane, card, three tiles), the recent-chat tiles are inset.
+ * Text: --cg-text for names and titles, --cg-text-2 for secondary lines, accent texts only on glass / inset tiles. Rows and
+ * controls carry no --cg-text-3 (4.6:1 is the floor on an inset tile; secondary text is 6.2:1).
+ * Motion: nothing animates on list navigation (rows switch instantly); press feedback is 120ms; hover is gated by
+ * (hover: hover) and (pointer: fine); the Chats title swap and the Home entrance are the only choreography.
+ */
+
+/* ───────────────────────────── tokens local to the shell ───────────────────────────── */
+
+:root[data-clariva] body {
+    /* the selected / online ring: Deep Teal on light, Teal on dark (= --cg-focus, 3:1 or more on every glass fill and the wallpaper) */
+    --clariva-ring: var(--cg-focus);
+
+    /* a quiet hover wash for controls that already sit on a tile (an inset tile has no darker state of its own) */
+    --clariva-hover-wash: rgba(11, 31, 58, 0.06);
+}
+
+:root[data-clariva] body[class*="cpd-theme-dark"] {
+    --clariva-hover-wash: rgba(234, 246, 244, 0.08);
+}
+
+/* how far the large and the compact "Chats" title travel while they swap (no travel under reduced motion) */
+:root[data-clariva] {
+    --clariva-title-shift: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root[data-clariva] {
+        --clariva-title-shift: 0px;
+    }
+}
+
+/* ───────────────────────────── the two glass panes ───────────────────────────── */
+
+/* the list pane: ONE frosted panel for the whole list column (header, search, chips, rows) */
+:root[data-clariva] .mx_LeftPanel_wrapper .mx_LeftPanel_wrapper--user {
+    @mixin cg-glass-regular;
+
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* ...so the layers inside it are clear (their stock canvas would paint over the glass, and a second blur would nest) */
+:root[data-clariva] .mx_LeftPanel,
+:root[data-clariva] .mx_LeftPanel .mx_LeftPanel_roomListContainer {
+    background-color: transparent;
+}
+
+:root[data-clariva] .mx_LeftPanel {
+    --clariva-chats-pad: var(--cpd-space-4x);
+    --clariva-row-min: 72px;
+}
+
+/* stock extras that have no Android counterpart (spec 06 section 5.4 #19: no room directory / dial pad) */
+:root[data-clariva] .mx_LeftPanel .mx_LeftPanel_filterContainer .mx_LeftPanel_exploreButton,
+:root[data-clariva] .mx_LeftPanel .mx_LeftPanel_filterContainer .mx_LeftPanel_dialPadButton {
+    display: none;
+}
+
+/* the rail: frosted too, 72px wide while it is the icon rail (the default) */
+:root[data-clariva] .mx_SpacePanel {
+    @mixin cg-glass-regular;
+
+    --activeBorder-color: var(--clariva-ring);
+    --activeBackground-color: transparent;
+}
+
+:root[data-clariva] .mx_SpacePanel.collapsed {
+    --gutterSize: 16px; /* (72px - the 40px button) / 2 */
+
+    width: 72px;
+}
+
+/* ───────────────────────────── rail: account, spaces, quick buttons ───────────────────────────── */
+
+:root[data-clariva] .mx_SpacePanel .mx_UserMenu {
+    border-bottom-color: var(--cg-line);
+}
+
+:root[data-clariva] .mx_SpacePanel.collapsed .mx_UserMenu {
+    margin-right: auto;
+    margin-left: auto;
+}
+
+/* the account avatar: a 44px target that gives under the finger */
+:root[data-clariva] .mx_SpacePanel .mx_UserMenu .mx_UserMenu_contextMenuButton {
+    @mixin cg-press;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--clariva-tap, 44px);
+    min-height: var(--clariva-tap, 44px);
+    border-radius: var(--cg-r-md);
+}
+
+:root[data-clariva] .mx_SpacePanel .mx_SpaceButton {
+    @mixin cg-press;
+}
+
+/* the open space (or Home): a teal ring around the 32px tile instead of the stock black frame */
+:root[data-clariva]
+    .mx_SpacePanel
+    .mx_SpaceButton.mx_SpaceButton_active.mx_SpaceButton_narrow
+    .mx_SpaceButton_selectionWrapper {
+    padding: 4px;
+    border: 0;
+    border-radius: 14px;
+    box-shadow: inset 0 0 0 2px var(--clariva-ring);
+}
+
+:root[data-clariva] .mx_SpacePanel .mx_SpaceButton .mx_SpaceButton_icon {
+    border-radius: 10px;
+}
+
+:root[data-clariva]
+    .mx_SpacePanel
+    .mx_SpaceButton:is(
+        .mx_SpaceButton_home,
+        .mx_SpaceButton_favourites,
+        .mx_SpaceButton_people,
+        .mx_SpaceButton_orphans,
+        .mx_SpaceButton_videoRooms
+    )
+    .mx_SpaceButton_icon {
+    background-color: var(--cg-surface-inset);
+}
+
+:root[data-clariva]
+    .mx_SpacePanel
+    .mx_SpaceButton:is(
+        .mx_SpaceButton_home,
+        .mx_SpaceButton_favourites,
+        .mx_SpaceButton_people,
+        .mx_SpaceButton_orphans,
+        .mx_SpaceButton_videoRooms
+    )
+    .mx_SpaceButton_icon::before {
+    background-color: var(--cg-text-2);
+}
+
+:root[data-clariva]
+    .mx_SpacePanel
+    .mx_SpaceButton.mx_SpaceButton_active:is(
+        .mx_SpaceButton_home,
+        .mx_SpaceButton_favourites,
+        .mx_SpaceButton_people,
+        .mx_SpaceButton_orphans,
+        .mx_SpaceButton_videoRooms
+    )
+    .mx_SpaceButton_icon::before {
+    background-color: var(--cg-text);
+}
+
+/* the stock badge cuts a notch out of the rail with a border; the glass badge needs none */
+:root[data-clariva] .mx_SpacePanel .mx_SpacePanel_badgeContainer .mx_NotificationBadge {
+    border-width: 0;
+}
+
+/* threads and settings at the bottom of the rail: 44px targets, press feedback, quiet icons */
+:root[data-clariva] .mx_SpacePanel .mx_QuickSettingsButton,
+:root[data-clariva] .mx_SpacePanel .mx_ThreadsActivityCentreButton {
+    @mixin cg-press;
+
+    min-width: var(--clariva-tap, 44px);
+    min-height: var(--clariva-tap, 44px);
+    border-radius: var(--cg-r-md);
+}
+
+:root[data-clariva] .mx_SpacePanel .mx_QuickSettingsButton::before {
+    top: 6px;
+    left: 6px;
+    background: var(--cg-text-2);
+}
+
+:root[data-clariva] .mx_SpacePanel .mx_QuickSettingsButton:not(.expanded):hover,
+:root[data-clariva] .mx_SpacePanel .mx_ThreadsActivityCentreButton:not(.expanded):hover {
+    background-color: transparent;
+}
+
+:root[data-clariva] .mx_SpacePanel .mx_ThreadsActivityCentreButton .mx_ThreadsActivityCentreButton_Icon {
+    color: var(--cg-text-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root[data-clariva] .mx_SpacePanel .mx_QuickSettingsButton:not(.expanded):hover,
+    :root[data-clariva] .mx_SpacePanel .mx_ThreadsActivityCentreButton:not(.expanded):hover {
+        background-color: var(--clariva-hover-wash);
+    }
+
+    :root[data-clariva] .mx_SpacePanel .mx_QuickSettingsButton:not(.expanded):hover::before {
+        background: var(--cg-text);
+    }
+
+    :root[data-clariva]
+        .mx_SpacePanel
+        .mx_ThreadsActivityCentreButton:not(.expanded):hover
+        .mx_ThreadsActivityCentreButton_Icon {
+        color: var(--cg-text);
+    }
+}
+
+/* ───────────────────────────── notification badges ───────────────────────────── */
+
+/*
+ * One badge for the rail, the list and the tab bar: a number on a teal glass drop (cg-glass-tint, no blur, --cg-on-tint is
+ * AA on both stops) and a coral drop for a mention (white on coral 4.66:1). The dot (no number) is a plain 10px drop.
+ * The stock "cpd-theme-light" class on a counting badge is irrelevant here: the colours are the design tokens.
+ */
+:root[data-clariva]
+    :is(.mx_LeftPanel, .mx_SpacePanel, .mx_ClarivaRail, .mx_ClarivaTabBar)
+    .mx_NotificationBadge.mx_NotificationBadge_visible:not(.mx_NotificationBadge_dot) {
+    @mixin cg-glass-tint;
+
+    box-sizing: border-box;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 11px;
+    pointer-events: none;
+}
+
+:root[data-clariva]
+    :is(.mx_LeftPanel, .mx_SpacePanel, .mx_ClarivaRail, .mx_ClarivaTabBar)
+    .mx_NotificationBadge.mx_NotificationBadge_visible.mx_NotificationBadge_2char:not(.mx_NotificationBadge_dot) {
+    width: 22px;
+    padding: 0;
+}
+
+:root[data-clariva]
+    :is(.mx_LeftPanel, .mx_SpacePanel, .mx_ClarivaRail, .mx_ClarivaTabBar)
+    .mx_NotificationBadge.mx_NotificationBadge_visible.mx_NotificationBadge_3char:not(.mx_NotificationBadge_dot) {
+    width: auto;
+}
+
+:root[data-clariva]
+    :is(.mx_LeftPanel, .mx_SpacePanel, .mx_ClarivaRail, .mx_ClarivaTabBar)
+    .mx_NotificationBadge.mx_NotificationBadge_visible.mx_NotificationBadge_level_highlight:not(
+        .mx_NotificationBadge_dot
+    ) {
+    background: var(--cg-coral);
+    box-shadow:
+        inset 0 1px 0 var(--cg-highlight),
+        var(--cg-e1);
+    color: var(--cg-on-coral);
+}
+
+:root[data-clariva]
+    :is(.mx_LeftPanel, .mx_SpacePanel, .mx_ClarivaRail, .mx_ClarivaTabBar)
+    .mx_NotificationBadge.mx_NotificationBadge_visible
+    .mx_NotificationBadge_count {
+    color: inherit;
+    font: var(--cpd-font-body-xs-semibold);
+    font-size: var(--cg-fs-xs);
+    font-weight: 600;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+:root[data-clariva]
+    :is(.mx_LeftPanel, .mx_SpacePanel, .mx_ClarivaRail, .mx_ClarivaTabBar)
+    .mx_NotificationBadge.mx_NotificationBadge_visible.mx_NotificationBadge_dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    background-color: var(--cg-teal-deep);
+    box-shadow: var(--cg-edge-tint);
+}
+
+:root[data-clariva]
+    :is(.mx_LeftPanel, .mx_SpacePanel, .mx_ClarivaRail, .mx_ClarivaTabBar)
+    .mx_NotificationBadge.mx_NotificationBadge_visible.mx_NotificationBadge_dot.mx_NotificationBadge_level_highlight {
+    background-color: var(--cg-coral);
+}
+
+/* ───────────────────────────── list header: coin chip + compact title ───────────────────────────── */
+
+:root[data-clariva] .mx_ClarivaChatsHeader {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    column-gap: var(--cpd-space-2x);
+    min-height: 64px;
+    box-sizing: border-box;
+    padding: var(--cpd-space-3x) var(--clariva-chats-pad) var(--cpd-space-1x);
+    background: none;
+}
+
+:root[data-clariva] .mx_ClarivaChatsHeader .mx_ClarivaChatsHeader_start {
+    display: flex;
+    align-items: center;
+    gap: var(--cpd-space-1x);
+    min-width: 0;
+}
+
+/* the compact title: shown once the list has scrolled past the large one (data-collapsed, set by useListCollapse) */
+:root[data-clariva] .mx_ClarivaChatsHeader .mx_ClarivaChatsHeader_title {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--cg-text);
+    font-size: var(--cg-fs-lg);
+    font-weight: 650;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translate3d(0, var(--clariva-title-shift), 0);
+    transition:
+        opacity var(--cg-dur-small) var(--cg-ease-out),
+        transform var(--cg-dur-small) var(--cg-ease-out);
+    pointer-events: none;
+}
+
+:root[data-clariva] .mx_LeftPanel_roomListContainer[data-collapsed="true"] .mx_ClarivaChatsHeader_title {
+    opacity: 1;
+    transform: none;
+}
+
+/* account menu (UserMenu) in the header: avatar only, a 44px target */
+:root[data-clariva] .mx_ClarivaChatsHeader .mx_UserMenu {
+    width: auto;
+}
+
+:root[data-clariva] .mx_ClarivaChatsHeader .mx_UserMenu .mx_UserMenu_contextMenuButton {
+    @mixin cg-press;
+
+    width: var(--clariva-tap, 44px);
+    height: var(--clariva-tap, 44px);
+    justify-content: center;
+    border-radius: var(--cg-r-pill);
+}
+
+:root[data-clariva] .mx_ClarivaChatsHeader .mx_UserMenu .mx_UserMenu_name {
+    display: none;
+}
+
+:root[data-clariva] .mx_ClarivaChatsHeader .mx_ClarivaChatsHeader_spaces {
+    @mixin cg-press;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--clariva-tap, 44px);
+    height: var(--clariva-tap, 44px);
+    border-radius: var(--cg-r-pill);
+    color: var(--cg-text);
+
+    @mixin cg-focus-ring;
+}
+
+/* the coin chip: the amber coin and the balance in tabular numerals, an inset tile with a specular edge */
+:root[data-clariva] .mx_ClarivaChatsHeader .mx_ClarivaCoinChip {
+    @mixin cg-inset;
+    @mixin cg-press;
+
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cpd-space-2x);
+    min-height: var(--clariva-tap, 44px);
+    margin: 0;
+    padding: 0 var(--cpd-space-4x) 0 var(--cpd-space-3x);
+    border: 0;
+    border-radius: var(--cg-r-pill);
+    box-shadow: var(--cg-edge), var(--cg-e1);
+    color: var(--cg-text);
+    cursor: pointer;
+
+    @mixin cg-focus-ring;
+}
+
+:root[data-clariva] .mx_ClarivaChatsHeader .mx_ClarivaCoinChip .mx_ClarivaCoinChip_text {
+    @mixin cg-numerals;
+
+    color: var(--cg-text);
+    font-size: var(--cg-fs-md);
+    font-weight: 650;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+/* the glint starts at once (the foundation delays it 400ms after mount, which is right for "credits updated" but late for a hover) */
+:root[data-clariva] .mx_ClarivaChatsHeader .mx_ClarivaCoinChip .cg-coin__glint {
+    animation-delay: 0ms;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root[data-clariva] .mx_ClarivaChatsHeader .mx_ClarivaCoinChip:hover {
+        background-image: linear-gradient(var(--clariva-hover-wash), var(--clariva-hover-wash));
+    }
+
+    :root[data-clariva] .mx_ClarivaChatsHeader .mx_UserMenu .mx_UserMenu_contextMenuButton:hover,
+    :root[data-clariva] .mx_ClarivaChatsHeader .mx_ClarivaChatsHeader_spaces:hover {
+        background-color: var(--clariva-hover-wash);
+    }
+}
+
+/* ───────────────────────────── "Chats" title row ───────────────────────────── */
+
+:root[data-clariva] .mx_LeftPanel .mx_LeftPanel_roomListContainer .mx_RoomListHeader {
+    margin: 0;
+    padding: var(--cpd-space-1x) var(--clariva-chats-pad) var(--cpd-space-2x);
+    min-height: 56px;
+}
+
+/* the large title: Fraunces, the one display moment of the list (cg-display, 36px) */
+:root[data-clariva] .mx_LeftPanel .mx_RoomListHeader .mx_ClarivaChatsTitle {
+    @mixin cg-display;
+
+    margin: 0 auto 0 0;
+    padding: 0;
+    overflow: hidden;
+    color: var(--cg-text);
+    font-size: var(--cg-fs-3xl);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition:
+        opacity var(--cg-dur-small) var(--cg-ease-out),
+        transform var(--cg-dur-small) var(--cg-ease-out);
+}
+
+:root[data-clariva] .mx_LeftPanel_roomListContainer[data-collapsed="true"] .mx_ClarivaChatsTitle {
+    opacity: 0;
+    transform: translate3d(0, calc(-1 * var(--clariva-title-shift)), 0);
+}
+
+/* the "+" menu button of the title row (mouse screens; phones use the round button next to the tab bar) */
+:root[data-clariva] .mx_LeftPanel .mx_RoomListHeader .mx_RoomListHeader_plusButton {
+    @mixin cg-inset;
+    @mixin cg-press;
+
+    width: var(--clariva-tap, 44px);
+    height: var(--clariva-tap, 44px);
+    margin: 0;
+    padding: 0;
+    border-radius: var(--cg-r-pill);
+    box-shadow: var(--cg-edge), var(--cg-e1);
+
+    @mixin cg-focus-ring;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_RoomListHeader .mx_RoomListHeader_plusButton::before {
+    top: 12px;
+    left: 12px;
+    width: 20px;
+    height: 20px;
+    background-color: var(--cg-text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root[data-clariva] .mx_LeftPanel .mx_RoomListHeader .mx_RoomListHeader_plusButton:hover {
+        background-image: linear-gradient(var(--clariva-hover-wash), var(--clariva-hover-wash));
+    }
+}
+
+/* a stock hover that is not gated (it would stick after a tap) must not repaint the button */
+:root[data-clariva] .mx_LeftPanel .mx_RoomListHeader .mx_RoomListHeader_plusButton:hover::before {
+    background-color: var(--cg-text);
+}
+
+/* ───────────────────────────── search pill ───────────────────────────── */
+
+:root[data-clariva] .mx_LeftPanel .mx_LeftPanel_roomListContainer .mx_LeftPanel_filterContainer {
+    margin: 0;
+    padding: var(--cpd-space-1x) var(--clariva-chats-pad) var(--cpd-space-3x);
+    border-bottom: 0;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_LeftPanel_filterContainer .mx_RoomSearch {
+    @mixin cg-inset;
+    @mixin cg-press;
+
+    height: 48px;
+    min-height: 48px;
+    padding: 0 var(--cpd-space-4x);
+    border: 0;
+    border-radius: var(--cg-r-pill);
+    box-shadow: var(--cg-edge), var(--cg-e1);
+    box-sizing: border-box;
+
+    @mixin cg-focus-ring;
+}
+
+/* placeholder-like label, shortcut hint, then the icon on the right (Android): 16px so nothing zooms on iOS */
+:root[data-clariva] .mx_LeftPanel .mx_LeftPanel_filterContainer .mx_RoomSearch .mx_RoomSearch_spotlightTriggerText {
+    order: 1;
+    margin: 0;
+    color: var(--cg-text-2);
+    font: var(--cpd-font-body-lg-regular);
+    font-size: 1rem;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_LeftPanel_filterContainer .mx_RoomSearch .mx_RoomSearch_shortcutPrompt {
+    order: 2;
+    margin: 0 var(--cpd-space-2x) 0 0;
+    padding: 2px 6px;
+    background-color: var(--clariva-hover-wash);
+    color: var(--cg-text-2);
+    font: var(--cpd-font-body-sm-medium);
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_LeftPanel_filterContainer .mx_RoomSearch .mx_RoomSearch_icon {
+    order: 3;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    mask-size: contain;
+    background-color: var(--cg-text-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root[data-clariva] .mx_LeftPanel .mx_LeftPanel_filterContainer .mx_RoomSearch:hover {
+        background-image: linear-gradient(var(--clariva-hover-wash), var(--clariva-hover-wash));
+    }
+}
+
+/* ───────────────────────────── filter chips ───────────────────────────── */
+
+:root[data-clariva] .mx_ClarivaChatFilters {
+    flex-shrink: 0;
+    min-width: 0;
+    margin: 0 0 var(--cpd-space-1x);
+}
+
+:root[data-clariva] .mx_ClarivaChatFilters .mx_ClarivaChatFilters_scroller {
+    display: flex;
+    align-items: center;
+    gap: var(--cpd-space-2x);
+    padding: 0 var(--clariva-chats-pad);
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: var(--clariva-chats-pad);
+    scrollbar-width: none;
+}
+
+:root[data-clariva] .mx_ClarivaChatFilters .mx_ClarivaChatFilters_scroller::-webkit-scrollbar {
+    display: none;
+}
+
+/* the chip is a 44px-tall target around a 36px pill (the pill carries the look and the focus ring) */
+:root[data-clariva] .mx_ClarivaChatFilters .mx_ClarivaChatFilters_chip,
+:root[data-clariva] .mx_ClarivaChatFilters .mx_ClarivaChatFilters_clear {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--clariva-tap, 44px);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* unselected: an inset tile; selected: the teal glass drop (cg-glass-tint), which is also what slides into place (FLIP in ChatFilterChips) */
+:root[data-clariva] .mx_ClarivaChatFilters .mx_ClarivaChatFilters_chip .mx_ClarivaChatFilters_chipLabel {
+    @mixin cg-inset;
+
+    display: inline-flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 var(--cpd-space-4x);
+    box-sizing: border-box;
+    border-radius: var(--cg-r-pill);
+    color: var(--cg-text);
+    font: var(--cpd-font-body-md-medium);
+    white-space: nowrap;
+    transition:
+        transform var(--cg-dur-press) var(--cg-ease-out),
+        background-color var(--cg-dur-hover) var(--cg-ease-out);
+}
+
+:root[data-clariva]
+    .mx_ClarivaChatFilters
+    .mx_ClarivaChatFilters_chip.mx_ClarivaChatFilters_chip_selected
+    .mx_ClarivaChatFilters_chipLabel {
+    @mixin cg-glass-tint;
+
+    font-weight: 650;
+}
+
+:root[data-clariva] .mx_ClarivaChatFilters .mx_ClarivaChatFilters_chip:active .mx_ClarivaChatFilters_chipLabel {
+    transform: scale(var(--cg-press-scale));
+}
+
+@media (hover: hover) and (pointer: fine) {
+    :root[data-clariva]
+        .mx_ClarivaChatFilters
+        .mx_ClarivaChatFilters_chip:not(.mx_ClarivaChatFilters_chip_selected):hover
+        .mx_ClarivaChatFilters_chipLabel {
+        background-image: linear-gradient(var(--clariva-hover-wash), var(--clariva-hover-wash));
+    }
+}
+
+:root[data-clariva] .mx_ClarivaChatFilters .mx_ClarivaChatFilters_chip:focus-visible,
+:root[data-clariva] .mx_ClarivaChatFilters .mx_ClarivaChatFilters_clear:focus-visible {
+    outline: none;
+}
+
+:root[data-clariva] .mx_ClarivaChatFilters .mx_ClarivaChatFilters_chip:focus-visible .mx_ClarivaChatFilters_chipLabel,
+:root[data-clariva] .mx_ClarivaChatFilters .mx_ClarivaChatFilters_clear:focus-visible .mx_ClarivaChatFilters_clearIcon {
+    outline: 2px solid var(--cg-focus);
+    outline-offset: 2px;
+}
+
+/* the "x" that clears the selection: a navy drop */
+:root[data-clariva] .mx_ClarivaChatFilters .mx_ClarivaChatFilters_clear .mx_ClarivaChatFilters_clearIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--cg-r-pill);
+    background-color: var(--cg-navy);
+    color: var(--cg-on-teal-deep);
+    box-shadow: var(--cg-edge-tint), var(--cg-e1);
+}
+
+/* ───────────────────────────── list ───────────────────────────── */
+
+:root[data-clariva] .mx_LeftPanel .mx_LeftPanel_roomListContainer .mx_LeftPanel_roomListWrapper {
+    margin-top: 0;
+    padding-right: 0;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_LeftPanel_actualRoomListContainer {
+    padding-bottom: var(--cpd-space-4x);
+    overscroll-behavior: contain;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_RoomList {
+    padding-right: 0;
+}
+
+/* sections: one flat list, the labels are quiet captions (and gone while a filter is active) */
+:root[data-clariva] .mx_LeftPanel .mx_RoomList .mx_RoomSublist {
+    margin: 0;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_RoomList .mx_RoomSublist .mx_RoomSublist_headerContainer {
+    height: auto;
+    padding: var(--cpd-space-3x) var(--clariva-chats-pad) var(--cpd-space-1x);
+}
+
+/* the sections cannot be collapsed any more (every chat is listed), so the label is just a caption */
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomList
+    .mx_RoomSublist
+    .mx_RoomSublist_headerContainer
+    .mx_RoomSublist_headerText {
+    color: var(--cg-text-2);
+    font: var(--cpd-font-body-sm-semibold);
+    cursor: default;
+    pointer-events: none;
+}
+
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomList
+    .mx_RoomSublist
+    .mx_RoomSublist_headerContainer
+    .mx_RoomSublist_collapseBtn,
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomList
+    .mx_RoomSublist
+    .mx_RoomSublist_headerContainer
+    .mx_RoomSublist_auxButton,
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomList
+    .mx_RoomSublist
+    .mx_RoomSublist_headerContainer
+    .mx_RoomSublist_menuButton {
+    display: none;
+}
+
+:root[data-clariva]
+    .mx_ClarivaChatFilters[data-active="true"]
+    ~ .mx_LeftPanel_roomListWrapper
+    .mx_RoomList
+    .mx_RoomSublist
+    .mx_RoomSublist_headerContainer {
+    display: none;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_RoomList .mx_RoomSublist .mx_RoomSublist_resizeBox .mx_RoomSublist_tiles {
+    mask-image: none;
+}
+
+/* ───────────────────────────── chat row (Android RoomSummaryRow) ───────────────────────────── */
+
+/*
+ * A row is an inset tile only when it has a state to show (hover, open, focused); at rest it is just content on the glass.
+ * No backdrop-filter (there can be hundreds of rows), and no transition on the fill: switching chats is something people do
+ * all day, so the open row changes at once. The press feedback (a 1.5% squeeze) is the only motion.
+ */
+:root[data-clariva] .mx_LeftPanel .mx_RoomList .mx_RoomSublist .mx_RoomTile.mx_RoomTile_clariva {
+    @mixin cg-press;
+
+    --cg-press-scale: 0.985;
+
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--cpd-space-3x);
+    min-height: var(--clariva-row-min);
+    margin: 2px var(--cpd-space-2x);
+    padding: var(--cpd-space-2x) var(--cpd-space-3x);
+    box-sizing: border-box;
+    border-radius: var(--cg-r-md);
+    background-color: transparent;
+    color: var(--cg-text);
+    cursor: pointer;
+}
+
+/* stock paints the row on focus-within too; that would leave a tapped row tinted when the list comes back on a phone */
+:root[data-clariva] .mx_LeftPanel .mx_RoomList .mx_RoomSublist .mx_RoomTile.mx_RoomTile_clariva:focus-within {
+    background-color: transparent;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_RoomList .mx_RoomSublist .mx_RoomTile.mx_RoomTile_clariva:focus-visible {
+    @mixin cg-inset;
+
+    outline: 2px solid var(--cg-focus);
+    outline-offset: -2px;
+}
+
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomList
+    .mx_RoomSublist
+    .mx_RoomTile.mx_RoomTile_clariva.mx_RoomTile_hasMenuOpen {
+    @mixin cg-inset;
+}
+
+/* hover = the inset lift: the tile fades in with a soft shadow under it (no blur, no movement) */
+@media (hover: hover) and (pointer: fine) {
+    :root[data-clariva] .mx_LeftPanel .mx_RoomList .mx_RoomSublist .mx_RoomTile.mx_RoomTile_clariva:hover {
+        @mixin cg-inset;
+
+        box-shadow: var(--cg-edge), var(--cg-e1);
+    }
+}
+
+/* the open chat: an inset tile with a teal edge, so it is not told by colour alone */
+:root[data-clariva] .mx_LeftPanel .mx_RoomList .mx_RoomSublist .mx_RoomTile.mx_RoomTile_clariva.mx_RoomTile_selected {
+    @mixin cg-inset;
+
+    box-shadow:
+        inset 0 0 0 2px var(--clariva-ring),
+        var(--cg-e1);
+}
+
+/* the avatar and its PRESENCE RING: teal when the peer is online, nothing otherwise */
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_avatar,
+:root[data-clariva] .mx_ClarivaRail .mx_ClarivaRail_avatar {
+    position: relative;
+    display: block;
+    flex-shrink: 0;
+    border-radius: 50%;
+    line-height: 0;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_DecoratedRoomAvatar,
+:root[data-clariva] .mx_ClarivaRail .mx_DecoratedRoomAvatar {
+    margin: 0;
+    flex-shrink: 0;
+}
+
+/* the ring replaces the stock status dot (and the notch the dot is cut out of the avatar with) */
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva
+    .mx_DecoratedRoomAvatar.mx_DecoratedRoomAvatar_cutout
+    .mx_BaseAvatar,
+:root[data-clariva] .mx_ClarivaRail .mx_DecoratedRoomAvatar.mx_DecoratedRoomAvatar_cutout .mx_BaseAvatar {
+    mask-image: none;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_DecoratedRoomAvatar_icon,
+:root[data-clariva] .mx_ClarivaRail .mx_DecoratedRoomAvatar_icon {
+    opacity: 0;
+}
+
+/* ...but the dot stays reachable by keyboard (it carries the "Online" tooltip), so it shows while it has focus */
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_DecoratedRoomAvatar_icon:focus-visible,
+:root[data-clariva] .mx_ClarivaRail .mx_DecoratedRoomAvatar_icon:focus-visible {
+    opacity: 1;
+}
+
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva
+    .mx_ClarivaRoomTile_avatar:has(.mx_DecoratedRoomAvatar_icon_online),
+:root[data-clariva] .mx_ClarivaRail .mx_ClarivaRail_avatar:has(.mx_DecoratedRoomAvatar_icon_online) {
+    outline: 2px solid var(--clariva-ring);
+    outline-offset: 2px;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(24px, auto) minmax(22px, auto);
+    grid-template-areas:
+        "name meta"
+        "preview indicators";
+    column-gap: var(--cpd-space-3x);
+    row-gap: var(--cpd-space-0-5x);
+    min-width: 0;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_nameRow {
+    grid-area: name;
+    align-self: center;
+    display: flex;
+    align-items: center;
+    gap: var(--cpd-space-2x);
+    min-width: 0;
+}
+
+/* the name: 15px / 600, one line */
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_nameRow .mx_RoomTile_title {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: var(--cg-text);
+    font-size: var(--cg-fs-md);
+    font-weight: 600;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva
+    .mx_ClarivaRoomTile_nameRow
+    .mx_RoomTile_title.mx_RoomTile_titleHasUnreadEvents {
+    font-weight: 700;
+}
+
+/* the credits label: a quiet amber tag (amber text on the amber wash, 4.7:1; never text-3 here) */
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_nameRow .mx_ClarivaRoomTileRate,
+:root[data-clariva] .mx_ClarivaRail .mx_ClarivaRoomTileRate {
+    @mixin cg-numerals;
+
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 1px var(--cpd-space-2x);
+    border-radius: var(--cg-r-pill);
+    background-color: var(--cg-amber-wash);
+    color: var(--cg-amber-text);
+    font-size: var(--cg-fs-xs);
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+/* the red Refund pill sits right after the name */
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_nameRow .mx_ClarivaRefundPill {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 2px var(--cpd-space-2x);
+    font: var(--cpd-font-body-sm-semibold);
+    line-height: 1.25;
+}
+
+/* the time, top right: secondary text (teal-text while there is something unread) */
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_meta {
+    grid-area: meta;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    min-width: 0;
+    text-align: right;
+    white-space: nowrap;
+}
+
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_meta .mx_ClarivaRoomTile_time {
+    @mixin cg-numerals;
+
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-xs);
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva
+    .mx_ClarivaRoomTile_meta
+    .mx_ClarivaRoomTile_time.mx_ClarivaRoomTile_time_unread {
+    color: var(--cg-teal-text);
+    font-weight: 650;
+}
+
+/* one-line preview, 13px in secondary text (primary while there is something unread) */
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_previewRow {
+    grid-area: preview;
+    min-width: 0;
+    align-self: center;
+}
+
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva
+    .mx_ClarivaRoomTile_previewRow
+    .mx_RoomTile_subtitle {
+    display: flex;
+    align-items: center;
+    gap: var(--cpd-space-1x);
+    min-width: 0;
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-sm);
+    font-weight: 400;
+    line-height: 1.45;
+}
+
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva
+    .mx_ClarivaRoomTile_previewRow
+    .mx_RoomTile_subtitle
+    .mx_RoomTile_subtitle_text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva:has(.mx_RoomTile_titleHasUnreadEvents)
+    .mx_ClarivaRoomTile_previewRow
+    .mx_RoomTile_subtitle {
+    color: var(--cg-text);
+    font-weight: 500;
+}
+
+/* unread badge / "..." and bell buttons share the bottom-right cell */
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_indicators {
+    grid-area: indicators;
+    align-self: center;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--cpd-space-1x);
+    min-height: 22px;
+}
+
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva
+    .mx_ClarivaRoomTile_indicators
+    .mx_RoomTile_badgeContainer {
+    height: auto;
+    margin: 0;
+}
+
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva
+    .mx_ClarivaRoomTile_indicators
+    .mx_RoomTile_badgeContainer
+    .mx_NotificationBadge {
+    margin: 0;
+}
+
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva
+    .mx_ClarivaRoomTile_indicators
+    .mx_RoomTile_menuButton,
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva
+    .mx_ClarivaRoomTile_indicators
+    .mx_RoomTile_notificationsButton {
+    margin: 0;
+}
+
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva
+    .mx_ClarivaRoomTile_indicators
+    .mx_RoomTile_menuButton::before,
+:root[data-clariva]
+    .mx_LeftPanel
+    .mx_RoomTile.mx_RoomTile_clariva
+    .mx_ClarivaRoomTile_indicators
+    .mx_RoomTile_notificationsButton::before {
+    background: var(--cg-text-2);
+}
+
+/* ───────────────────────────── first load: placeholder rows ───────────────────────────── */
+
+:root[data-clariva] .mx_ClarivaChatsSkeleton {
+    padding: var(--cpd-space-1x) 0;
+}
+
+/* the status sentence is for assistive technology only */
+:root[data-clariva] .mx_ClarivaChatsSkeleton .mx_ClarivaChatsSkeleton_status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+
+:root[data-clariva] .mx_ClarivaChatsSkeleton .mx_ClarivaChatsSkeleton_row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--cpd-space-3x);
+    min-height: var(--clariva-row-min);
+    margin: 2px var(--cpd-space-2x);
+    padding: var(--cpd-space-2x) var(--cpd-space-3x);
+    box-sizing: border-box;
+}
+
+:root[data-clariva] .mx_ClarivaChatsSkeleton .mx_ClarivaChatsSkeleton_text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-2x);
+    min-width: 0;
+}
+
+/* ───────────────────────────── empty state ───────────────────────────── */
+
+:root[data-clariva] .mx_ClarivaChatsEmpty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--cpd-space-3x);
+    padding: var(--cpd-space-10x) var(--cpd-space-6x);
+    text-align: center;
+}
+
+:root[data-clariva] .mx_ClarivaChatsEmpty .mx_ClarivaChatsIllustration {
+    display: block;
+    width: 168px;
+    max-width: 100%;
+    height: auto;
+    margin-bottom: var(--cpd-space-2x);
+}
+
+/* the picture: the Clariva navy drop behind, the teal drop in front (decorative; the edge keeps the navy visible on dark) */
+:root[data-clariva] .mx_ClarivaChatsIllustration .mx_ClarivaChatsIllustration_back {
+    fill: var(--cg-navy);
+    stroke: var(--cg-highlight);
+    stroke-width: 1.5;
+}
+
+:root[data-clariva] .mx_ClarivaChatsIllustration .mx_ClarivaChatsIllustration_line {
+    stroke: var(--cg-teal);
+    stroke-width: 4;
+    stroke-linecap: round;
+}
+
+:root[data-clariva] .mx_ClarivaChatsIllustration .mx_ClarivaChatsIllustration_front {
+    fill: var(--cg-teal);
+    stroke: var(--cg-highlight);
+    stroke-width: 1.5;
+}
+
+:root[data-clariva] .mx_ClarivaChatsIllustration .mx_ClarivaChatsIllustration_dot {
+    fill: var(--cg-navy);
+}
+
+:root[data-clariva] .mx_ClarivaChatsIllustration .mx_ClarivaChatsIllustration_lens {
+    fill: var(--cg-amber-wash);
+    stroke: var(--cg-teal);
+    stroke-width: 6;
+}
+
+:root[data-clariva] .mx_ClarivaChatsIllustration .mx_ClarivaChatsIllustration_handle {
+    stroke: var(--cg-teal);
+    stroke-width: 7;
+    stroke-linecap: round;
+}
+
+:root[data-clariva] .mx_ClarivaChatsEmpty .mx_ClarivaChatsEmpty_title {
+    @mixin cg-display-sm;
+
+    margin: 0;
+    color: var(--cg-text);
+    font-size: var(--cg-fs-xl);
+}
+
+:root[data-clariva] .mx_ClarivaChatsEmpty .mx_ClarivaChatsEmpty_subtitle {
+    margin: 0 0 var(--cpd-space-2x);
+    max-width: 28ch;
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-md);
+    line-height: 1.5;
+}
+
+/* the one primary action of an empty state and of the wallet card: an Ink Navy pill with a teal glint */
+:root[data-clariva] .mx_ClarivaChatsEmpty .mx_ClarivaChatsEmpty_action,
+:root[data-clariva] .mx_ClarivaHome_cta {
+    @mixin cg-pressable;
+
+    --cg-transition-extra: box-shadow var(--cg-dur-hover) var(--cg-ease-out);
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    margin: 0;
+    padding: 0 var(--cpd-space-7x);
+    border: 0;
+    border-radius: var(--cg-r-pill);
+    background-color: var(--cg-navy);
+    background-image: radial-gradient(120% 160% at 0% 0%, rgba(0, 184, 160, 0.55), rgba(0, 184, 160, 0) 60%);
+    box-shadow: var(--cg-edge-tint), var(--cg-e1);
+    color: var(--cg-on-teal-deep);
+    font-size: var(--cg-fs-md);
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+
+    @mixin cg-focus-ring;
+}
+
+/* Ink Navy is the glass itself in the dark theme: a teal hairline keeps the pill's edge visible (3:1 or more against the glass) */
+:root[data-clariva]
+    body[class*="cpd-theme-dark"]
+    .mx_ClarivaChatsEmpty
+    .mx_ClarivaChatsEmpty_action:not(.mx_ClarivaChatsEmpty_action_secondary),
+:root[data-clariva] body[class*="cpd-theme-dark"] .mx_ClarivaHome_cta {
+    box-shadow:
+        inset 0 0 0 1px var(--cg-teal),
+        var(--cg-e1);
+}
+
+/* "Clear filters": the quiet one, an inset pill */
+:root[data-clariva] .mx_ClarivaChatsEmpty .mx_ClarivaChatsEmpty_action.mx_ClarivaChatsEmpty_action_secondary {
+    @mixin cg-inset;
+
+    background-image: none;
+    box-shadow: var(--cg-edge), var(--cg-e1);
+    color: var(--cg-text);
+}
+
+/* ───────────────────────────── start-chat button (phones; _responsive.pcss shows it) ───────────────────────────── */
+
+:root[data-clariva] .mx_LeftPanel .mx_ClarivaChatsFab {
+    @mixin cg-press;
+
+    display: none;
+    position: absolute;
+    right: var(--cpd-space-4x);
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    z-index: var(--cg-z-float);
+    width: 56px;
+    height: 56px;
+    margin: 0;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: var(--cg-r-pill);
+    background-color: var(--cg-teal-deep);
+    box-shadow: var(--cg-edge-tint), var(--cg-e3);
+    color: var(--cg-on-teal-deep);
+    cursor: pointer;
+
+    @mixin cg-focus-ring;
+}
+
+/* ═══════════════════════════════════════ Home dashboard ═══════════════════════════════════════ */
+
+/*
+ * The desktop pane that shows while no chat is open (HomeDashboard). It sits on the pane wash. The live aurora lives ONLY in
+ * the greeting block (rule 6) and the glass blocks below it are separate siblings, so no blur ever overlaps the moving layer.
+ */
+:root[data-clariva] .mx_ClarivaHome {
+    flex: 1 1 auto;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 0;
+    padding: var(--cpd-space-8x) var(--cpd-space-6x) var(--cpd-space-10x);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    color: var(--cg-text);
+}
+
+:root[data-clariva] .mx_ClarivaHome .mx_ClarivaHome_inner {
+    display: grid;
+    gap: var(--cpd-space-6x);
+    max-width: 760px;
+    margin: 0 auto;
+}
+
+:root[data-clariva] .mx_ClarivaHome .mx_ClarivaHome_block {
+    min-width: 0;
+}
+
+/* the Home landmark (Ctrl+F6 style navigation focuses it): a ring inside the pane, never a browser default one */
+:root[data-clariva] .mx_ClarivaHome:focus {
+    outline: none;
+}
+
+:root[data-clariva] .mx_ClarivaHome:focus-visible {
+    outline: 2px solid var(--cg-focus);
+    outline-offset: -2px;
+}
+
+/* first visit only: greeting, wallet, rail, tiles, 40ms apart (the keyframes and the movement tokens are the foundation's).
+   The stagger plays on the elements that paint (the hero, the wallet card, the rail, each quick tile), never on the wrapper
+   around a backdrop-filter: an opacity below 1 on an ANCESTOR switches the frost off for the length of the animation. */
+:root[data-clariva] .mx_ClarivaHome .mx_ClarivaHome_enter.mx_ClarivaHome_hero,
+:root[data-clariva] .mx_ClarivaHome .mx_ClarivaHome_enter > .mx_ClarivaWalletCard,
+:root[data-clariva] .mx_ClarivaHome .mx_ClarivaHome_enter > .mx_ClarivaRail,
+:root[data-clariva] .mx_ClarivaHome .mx_ClarivaHome_enter .mx_ClarivaQuick_tile {
+    animation: cg-enter 280ms var(--cg-ease-out) backwards;
+    animation-delay: calc(var(--cg-stagger, 0) * 40ms);
+}
+
+:root[data-clariva] .mx_ClarivaHome .mx_ClarivaHome_hero {
+    position: relative;
+    isolation: isolate;
+    padding: var(--cpd-space-10x) var(--cpd-space-8x);
+    overflow: hidden;
+    border-radius: var(--cg-r-xl);
+    box-shadow: var(--cg-edge);
+}
+
+:root[data-clariva] .mx_ClarivaHome .mx_ClarivaHome_greeting {
+    @mixin cg-display;
+
+    margin: 0;
+    color: var(--cg-text);
+    font-size: clamp(var(--cg-fs-2xl), 1rem + 2vw, var(--cg-fs-3xl));
+}
+
+:root[data-clariva] .mx_ClarivaHome .mx_ClarivaHome_tagline {
+    margin: var(--cpd-space-2x) 0 0;
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-lg);
+    line-height: 1.45;
+}
+
+:root[data-clariva] .mx_ClarivaHome .mx_ClarivaHome_heading {
+    margin: 0 0 var(--cpd-space-3x);
+    color: var(--cg-text);
+    font-size: var(--cg-fs-lg);
+    font-weight: 650;
+    line-height: 1.3;
+}
+
+/* ── wallet card: the thick glass lens ── */
+
+:root[data-clariva] .mx_ClarivaHome .mx_ClarivaWalletCard {
+    @mixin cg-glass-thick;
+
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cpd-space-5x) var(--cpd-space-6x);
+    padding: var(--cpd-space-7x) var(--cpd-space-8x);
+    border-radius: var(--cg-r-xl);
+}
+
+:root[data-clariva] .mx_ClarivaWalletCard .mx_ClarivaWalletCard_balance {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-1x);
+    min-width: 0;
+}
+
+:root[data-clariva] .mx_ClarivaWalletCard .mx_ClarivaWalletCard_caption,
+:root[data-clariva] .mx_ClarivaWalletCard .mx_ClarivaWalletCard_hint {
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-sm);
+    line-height: 1.4;
+}
+
+:root[data-clariva] .mx_ClarivaWalletCard .mx_ClarivaWalletCard_caption {
+    font-weight: 600;
+}
+
+:root[data-clariva] .mx_ClarivaWalletCard .mx_ClarivaWalletCard_figure {
+    display: flex;
+    align-items: center;
+    gap: var(--cpd-space-3x);
+    min-height: 56px;
+}
+
+/* the hero number: Fraunces at 48px (its proportional numerals are fine with nothing to align to) */
+:root[data-clariva] .mx_ClarivaWalletCard .mx_ClarivaWalletCard_amount {
+    @mixin cg-display;
+
+    color: var(--cg-text);
+    font-size: var(--cg-fs-4xl);
+    line-height: 1;
+}
+
+:root[data-clariva] .mx_ClarivaWalletCard .mx_ClarivaWalletCard_unit {
+    align-self: flex-end;
+    padding-bottom: var(--cpd-space-1x);
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-lg);
+    line-height: 1.2;
+}
+
+:root[data-clariva] .mx_ClarivaWalletCard .mx_ClarivaWalletCard_unavailable {
+    color: var(--cg-coral-text);
+    font-size: var(--cg-fs-lg);
+    font-weight: 600;
+}
+
+:root[data-clariva] .mx_ClarivaWalletCard .mx_ClarivaWalletCard_action {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--cpd-space-3x);
+}
+
+:root[data-clariva] .mx_ClarivaWalletCard .mx_ClarivaWalletCard_refunds {
+    margin: 0;
+    color: var(--cg-text);
+    font-size: var(--cg-fs-md);
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+/* ── recent chats rail ── */
+
+/* the row bleeds to the edges of the column so the fades sit outside the content; padding keeps the first tile in line */
+:root[data-clariva] .mx_ClarivaRail .mx_ClarivaRail_list {
+    display: flex;
+    gap: var(--cpd-space-3x);
+    margin: 0 calc(-1 * var(--cpd-space-6x));
+    padding: var(--cpd-space-1x) var(--cpd-space-6x) var(--cpd-space-3x);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    list-style: none;
+    scroll-padding-inline: var(--cpd-space-6x);
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    mask-image: linear-gradient(
+        to right,
+        transparent 0,
+        #000 var(--cpd-space-6x),
+        #000 calc(100% - var(--cpd-space-6x)),
+        transparent 100%
+    );
+}
+
+:root[data-clariva] .mx_ClarivaRail .mx_ClarivaRail_list::-webkit-scrollbar {
+    display: none;
+}
+
+:root[data-clariva] .mx_ClarivaRail .mx_ClarivaRail_cell {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0;
+    scroll-snap-align: start;
+}
+
+:root[data-clariva] .mx_ClarivaRail .mx_ClarivaRail_item {
+    @mixin cg-inset;
+    @mixin cg-pressable;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--cpd-space-2x);
+    box-sizing: border-box;
+    width: 116px;
+    min-height: 44px;
+    margin: 0;
+    padding: var(--cpd-space-4x) var(--cpd-space-2x) var(--cpd-space-3x);
+    border: 0;
+    border-radius: var(--cg-r-lg);
+    box-shadow: var(--cg-edge), var(--cg-e1);
+    color: var(--cg-text);
+    cursor: pointer;
+
+    @mixin cg-focus-ring;
+}
+
+:root[data-clariva] .mx_ClarivaRail .mx_ClarivaRail_item .mx_ClarivaRail_name {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--cg-text);
+    font-size: var(--cg-fs-sm);
+    font-weight: 600;
+    line-height: 1.35;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* the same amber tag as the list row; the cell keeps its height without a tag so the tiles line up */
+:root[data-clariva] .mx_ClarivaRail .mx_ClarivaRail_item .mx_ClarivaRail_rate {
+    display: flex;
+    align-items: center;
+    min-height: 22px;
+}
+
+:root[data-clariva] .mx_ClarivaRail .mx_ClarivaRail_avatar .mx_DecoratedRoomAvatar .mx_NotificationBadge {
+    width: auto;
+    height: 22px;
+}
+
+/* ── quick actions ── */
+
+:root[data-clariva] .mx_ClarivaQuick .mx_ClarivaQuick_list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--cpd-space-3x);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+:root[data-clariva] .mx_ClarivaQuick .mx_ClarivaQuick_cell {
+    display: flex;
+    margin: 0;
+    padding: 0;
+}
+
+:root[data-clariva] .mx_ClarivaQuick .mx_ClarivaQuick_tile {
+    @mixin cg-glass-thin;
+    @mixin cg-pressable;
+
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: var(--cpd-space-3x);
+    box-sizing: border-box;
+    min-height: 96px;
+    margin: 0;
+    padding: var(--cpd-space-4x) var(--cpd-space-5x);
+    border: 0;
+    border-radius: var(--cg-r-lg);
+    color: var(--cg-text);
+    font-size: var(--cg-fs-md);
+    font-weight: 600;
+    line-height: 1.3;
+    text-align: left;
+    cursor: pointer;
+
+    @mixin cg-focus-ring;
+}
+
+:root[data-clariva] .mx_ClarivaQuick .mx_ClarivaQuick_icon {
+    display: inline-flex;
+    width: 24px;
+    height: 24px;
+    color: var(--cg-teal-text);
+}
+
+:root[data-clariva] .mx_ClarivaQuick .mx_ClarivaQuick_icon svg {
+    width: 24px;
+    height: 24px;
+    fill: currentcolor;
+}
+
+/* ═══════════════════════════════════════ motion ═══════════════════════════════════════ */
+
+/* the foundation neutralises its own tokens (and _a11y.pcss makes every transition instant); the chip squeeze reads --cg-press-scale, which is 1 here, so only the title shift needed its own token (declared at the top) */

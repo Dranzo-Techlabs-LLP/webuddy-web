@@ -1,13 +1,13 @@
 {
-    "name": "Element",
-    "description": "A glossy Matrix collaboration client for the web.",
+    "name": "Clariva Web",
+    "description": "Clariva Web: private, paid conversations with trusted experts. Based on Element Web (AGPL-3.0-only OR GPL-3.0-only).",
     "repository": {
-        "url": "https://github.com/element-hq/element-web",
-        "license": "Apache License 2.0"
+        "url": "https://clarivahub.com",
+        "license": "AGPL-3.0-only OR GPL-3.0-only"
     },
     "bugs": {
-        "list": "https://github.com/element-hq/element-web/issues",
-        "report": "https://github.com/element-hq/element-web/issues/new/choose"
+        "list": "https://clarivahub.com",
+        "report": "https://clarivahub.com"
     },
-    "keywords": ["chat", "riot", "matrix"]
+    "keywords": ["chat", "matrix", "clariva"]
 }

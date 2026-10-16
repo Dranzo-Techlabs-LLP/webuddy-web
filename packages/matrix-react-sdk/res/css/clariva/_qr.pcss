@@ -1,0 +1,306 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Clariva QR dialogs, "Clear Water" glass edition. Both dialogs are the standard thick-glass dialog (see _dialogs.pcss);
+ * what is here is the QR "paper" and the scanner's viewfinder. A QR code is ALWAYS dark on light (scanners need that polarity),
+ * so the paper is pure white / black (--clariva-qr-paper / --clariva-qr-ink) in both themes, never a glass colour.
+ */
+
+/* My QR code ---------------------------------------------------------------------------------------------------------- */
+
+.mx_ClarivaMyQrDialog {
+    .mx_ClarivaMyQr_body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--cpd-space-6x);
+        min-width: min(280px, 100%);
+        max-width: 100%;
+        padding-block: var(--cpd-space-2x);
+    }
+
+    .mx_ClarivaMyQr_header {
+        display: flex;
+        align-items: center;
+        gap: var(--cpd-space-3x);
+        max-width: 100%;
+    }
+
+    .mx_ClarivaMyQr_names {
+        display: flex;
+        flex-direction: column;
+        min-width: 0; /* let long ids ellipsise instead of widening the dialog */
+    }
+
+    .mx_ClarivaMyQr_name {
+        color: var(--cg-text);
+        font-size: var(--cg-fs-lg);
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mx_ClarivaMyQr_userId {
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /*
+     * The paper: a 16px-radius frame with 16px of padding on pure white. Deliberately NOT themed: the paper colour is also the
+     * quiet zone around the code on a dark UI (the code itself carries a 4-module quiet zone; the padding adds breathing room).
+     * A hairline and a soft shadow lift it off the glass in the light theme; in the dark theme the white is its own contrast.
+     */
+    .mx_ClarivaMyQr_codeFrame {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        padding: var(--cpd-space-4x);
+        border-radius: var(--cg-r-md);
+        background: var(--clariva-qr-paper);
+        box-shadow:
+            inset 0 0 0 1px var(--cg-line),
+            var(--cg-e2);
+    }
+
+    .mx_ClarivaMyQr_code {
+        display: block;
+        width: 240px;
+        height: auto;
+        max-width: 100%;
+        aspect-ratio: 1 / 1;
+    }
+
+    .mx_ClarivaMyQr_unavailable {
+        margin: 0;
+        padding: var(--cpd-space-4x);
+        font-size: var(--cg-fs-md);
+        color: var(--clariva-qr-ink);
+    }
+
+    /* the one primary action: a full-width 48px "Share link" (the pill is the AccessibleButton primary of _dialogs.pcss) */
+    :root[data-clariva] & .mx_ClarivaMyQr_body .mx_ClarivaMyQr_share.mx_AccessibleButton.mx_AccessibleButton_hasKind {
+        align-self: stretch;
+        gap: var(--cpd-space-2x);
+        min-height: var(--cpd-space-12x);
+        text-align: center;
+    }
+
+    .mx_ClarivaMyQr_shareIcon {
+        flex: none;
+        width: 20px;
+        height: 20px;
+        fill: currentcolor;
+    }
+
+    .mx_ClarivaMyQr_toast {
+        display: flex;
+        justify-content: center;
+        min-height: var(--cpd-space-10x);
+        margin-top: var(--cpd-space-2x);
+    }
+}
+
+/* Scan QR code -------------------------------------------------------------------------------------------------------- */
+
+.mx_ClarivaScanQrDialog {
+    .mx_ClarivaScanQr {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--cpd-space-4x);
+        min-width: min(280px, 100%);
+        max-width: 100%;
+    }
+
+    /*
+     * Square camera preview with a viewfinder: the picture outside the central window is dimmed (::after, a huge
+     * box-shadow clipped by the frame) and four corner brackets mark the window (Android: rounded frame, 4 dp stroke).
+     * The frame is its own rounded tile (22px, concentric with the dialog's 28px at 6px) over Ink Navy until the camera starts.
+     */
+    .mx_ClarivaScanQr_frame {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: min(320px, 100%);
+        aspect-ratio: 1 / 1;
+        border-radius: var(--cg-r-lg);
+        overflow: hidden;
+        background: var(--cg-navy);
+        box-shadow: var(--cg-e2);
+
+        &::after {
+            content: "";
+            position: absolute;
+            inset: 14%;
+            border-radius: var(--cg-r-md);
+            box-shadow: 0 0 0 100vmax rgba(11, 31, 58, 0.45);
+            pointer-events: none;
+        }
+    }
+
+    .mx_ClarivaScanQr_video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    /* brackets sit on the corners of the window (14% in); Clarity Teal reads on any picture, the shadow on a bright one */
+    .mx_ClarivaScanQr_corner {
+        position: absolute;
+        z-index: 1;
+        width: 36px;
+        height: 36px;
+        border: 4px solid var(--cg-teal);
+        filter: drop-shadow(0 0 2px rgba(11, 31, 58, 0.6));
+        pointer-events: none;
+    }
+
+    .mx_ClarivaScanQr_corner_tl {
+        top: 14%;
+        left: 14%;
+        border-right: 0;
+        border-bottom: 0;
+        border-top-left-radius: var(--cg-r-md);
+    }
+
+    .mx_ClarivaScanQr_corner_tr {
+        top: 14%;
+        right: 14%;
+        border-left: 0;
+        border-bottom: 0;
+        border-top-right-radius: var(--cg-r-md);
+    }
+
+    .mx_ClarivaScanQr_corner_bl {
+        bottom: 14%;
+        left: 14%;
+        border-right: 0;
+        border-top: 0;
+        border-bottom-left-radius: var(--cg-r-md);
+    }
+
+    .mx_ClarivaScanQr_corner_br {
+        bottom: 14%;
+        right: 14%;
+        border-left: 0;
+        border-top: 0;
+        border-bottom-right-radius: var(--cg-r-md);
+    }
+
+    .mx_ClarivaScanQr_message {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--cpd-space-3x);
+        max-width: 320px;
+        text-align: center;
+        font-size: var(--cg-fs-md);
+        color: var(--cg-text);
+
+        p {
+            margin: 0;
+        }
+
+        /* the buttons / link under the viewfinder: 44px targets */
+        .mx_AccessibleButton {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            min-height: var(--clariva-tap);
+            touch-action: manipulation;
+        }
+    }
+
+    /* the live status line (aria-live): what to do while the camera is looking for a code */
+    .mx_ClarivaScanQr_hint {
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-md);
+    }
+
+    /* "not a valid code": an inset tile with a coral rail, coral-text and a glyph */
+    .mx_ClarivaScanQr_error {
+        @mixin cg-inset;
+        @mixin cg-error-glyph;
+
+        padding: var(--cpd-space-2x) var(--cpd-space-3x);
+        border-radius: var(--cg-r-md);
+        box-shadow:
+            var(--cg-edge-flat),
+            inset 3px 0 0 var(--cg-coral);
+        color: var(--cg-coral-text);
+        font-size: var(--cg-fs-md);
+        font-weight: 600;
+    }
+}
+
+/* Start chat entries + unresolved row ---------------------------------------------------------------------------------- */
+
+.mx_ClarivaStartChat_actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cpd-space-3x);
+    margin-block: var(--cpd-space-4x);
+}
+
+.mx_ClarivaStartChat_action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--cpd-space-2x);
+    box-sizing: border-box;
+    min-height: var(--clariva-tap);
+    touch-action: manipulation;
+}
+
+/* the "secondary" AccessibleButton is an underlined text link upstream; in a dialog these two are inset pills */
+:root[data-clariva] .mx_Dialog .mx_ClarivaStartChat_actions .mx_ClarivaStartChat_action.mx_AccessibleButton {
+    @mixin cg-btn-secondary;
+
+    padding: 0 var(--cpd-space-5x);
+    text-decoration: none;
+}
+
+.mx_ClarivaStartChat_actionIcon {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+    fill: currentcolor;
+}
+
+.mx_ClarivaSettings_myQr {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cpd-space-2x);
+    box-sizing: border-box;
+    min-height: var(--clariva-tap);
+    touch-action: manipulation;
+}
+
+/* An explicit Matrix id whose profile lookup failed: id + warning (Android: warning icon + sentence). */
+.mx_ClarivaInvite_unresolved {
+    margin-top: var(--cpd-space-1x);
+    font-size: var(--cg-fs-sm);
+    color: var(--cg-coral-text);
+    white-space: normal;
+}

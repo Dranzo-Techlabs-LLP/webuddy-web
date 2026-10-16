@@ -1,0 +1,285 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Clariva branding (docs/clariva/spec/06-branding-whitelabel.md section 3.3 / 7).
+ *
+ * Auth page chrome: VectorAuthPage adds `mx_AuthPage_clariva` when no `branding.welcome_background_url` image is
+ * configured. The gradient is the Android landing-page gradient (light + dark stops copied from ClarivaAuthView).
+ * The Compound theme class (`cpd-theme-light|dark[-hc]`) is set on <body> by theme.ts, so the dark variant tracks the
+ * user's / system theme without any JS.
+ */
+
+/*
+ * Clariva design tokens: the ONE place raw brand colours live (everything else uses --cpd-* semantic tokens, which
+ * already switch between light and dark). Radii follow an 8 / 12 / 16 / pill scale, shadows one elevation scale and
+ * motion one duration/easing pair, so every Clariva surface feels related.
+ */
+:root {
+    --clariva-teal: #00bfa5; /* brand teal (the mark, decorative tints) */
+    --clariva-navy: #0b1c3d; /* brand navy (the mark) */
+    --clariva-radius-sm: 8px;
+    --clariva-radius-md: 12px;
+    --clariva-radius-lg: 16px;
+    --clariva-radius-pill: 999px;
+    --clariva-elev-1: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.1);
+    --clariva-elev-2: 0 4px 12px rgba(0, 0, 0, 0.12);
+    --clariva-elev-3: 0 12px 32px rgba(0, 0, 0, 0.24);
+    --clariva-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --clariva-dur-enter: 200ms;
+    --clariva-dur-exit: 120ms;
+
+    /* minimum touch target */
+    --clariva-tap: 44px;
+
+    /* a QR code is always dark-on-light, whatever the theme (scanners need that polarity) */
+    --clariva-qr-paper: #ffffff;
+    --clariva-qr-ink: #000000;
+
+    /* dialog scrim: heavier on a dark canvas, where 50% black barely separates the dialog from the page */
+    --clariva-scrim: rgba(0, 0, 0, 0.5);
+
+    /*
+     * Small text that sits straight on the landing-page gradient is a mix of text-secondary and text-primary
+     * (--clariva-auth-* is the SHARE of the coloured token). Worst-case contrast over every gradient stop, measured from
+     * the Compound values (see _a11y.pcss): >= 4.5:1 in both themes. Light and dark need different shares because the
+     * dark gradient's teal band (#0f5a50) is much darker than the light one's.
+     */
+    --clariva-auth-muted: 55%;
+    --clariva-auth-critical: 60%;
+    --clariva-auth-success: 55%;
+
+    /* stacking scale used by the Clariva partials (dialogs 4000+, context menus 5000+ and toasts 101 are upstream's) */
+    --clariva-z-banner: 2;
+    --clariva-z-fab: 5;
+    --clariva-z-float: 10;
+    --clariva-z-sheet: 20;
+    --clariva-z-local-toast: 100;
+}
+
+/* shadows need to be stronger on a dark canvas to read at all */
+body[class*="cpd-theme-dark"] {
+    --clariva-elev-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+    --clariva-elev-2: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --clariva-elev-3: 0 12px 32px rgba(0, 0, 0, 0.6);
+    --clariva-scrim: rgba(0, 0, 0, 0.66);
+    --clariva-auth-muted: 30%;
+    --clariva-auth-critical: 25%;
+    --clariva-auth-success: 25%;
+}
+
+.mx_AuthPage.mx_AuthPage_clariva {
+    background-image: linear-gradient(to bottom, #eaf8f3 0%, #74d2bc 20%, #e2f6ef 40%, #9fe2d3 62%, #f4fbf9 100%);
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+}
+
+[class*="cpd-theme-dark"] .mx_AuthPage.mx_AuthPage_clariva {
+    background-image: linear-gradient(to bottom, #0b1622 0%, #0f5a50 20%, #0d1f2c 40%, #10463f 62%, #0a1420 100%);
+}
+
+/* The stock footer fades to black over the lake photo; on the pale / deep-navy gradient it is plain text instead. */
+.mx_AuthPage_clariva .mx_AuthFooter {
+    background: none;
+    opacity: 1;
+    font: var(--cpd-font-body-sm-regular);
+
+    a:link,
+    a:hover,
+    a:visited {
+        color: var(--cpd-color-text-secondary);
+        color: color-mix(
+            in srgb,
+            var(--cpd-color-text-secondary) var(--clariva-auth-muted),
+            var(--cpd-color-text-primary)
+        );
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ * "Clear Water" design tokens (--cg-*, "Clariva glass"). Source of truth: docs/clariva/DESIGN-SYSTEM.md section 2.
+ *
+ * Mechanism: the light values (and every theme-invariant token: radii, type scale, z-scale, blur/saturation) are on
+ * `:root[data-clariva]`; the dark values override them on the <body> theme class (Element sets `cpd-theme-dark[-hc]`
+ * there, see theme.ts). Because custom properties that reference other custom properties resolve where they are
+ * declared, a token built from other tokens (the --cg-surface-* / --cg-backdrop-* / --cg-edge set in _glass.pcss)
+ * is declared on `:root[data-clariva] body`, never on the root. Raw values stay literal here for exactly that reason,
+ * and so tests/designTokens-test.ts can read them.
+ *
+ * --clariva-* tokens above are untouched (used by every older partial); new work uses --cg-*.
+ * Text on a glass material must use --cg-text / --cg-text-2 / --cg-text-3: Compound's text-secondary is only 4.48:1 on
+ * the thinnest light glass over the teal aurora peak (3.5:1 on dark glass). --cg-text-3 is for glass and inset tiles only
+ * (never on the bare wallpaper, never on the amber wash). The accent texts (--cg-teal-text, --cg-coral-text,
+ * --cg-amber-text) are for glass, inset tiles and the opaque solids; none of them is guaranteed on the bare wallpaper.
+ * Glass that content can scroll under carries --cg-text ONLY (DESIGN-SYSTEM.md section 3, rule 7).
+ * ══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* light + theme-invariant */
+:root[data-clariva] {
+    /* palette. Teal is decorative / ring colour only (2.5:1 on white). TEXT and glyphs use teal-text, coral-text, amber-text;
+       teal-deep is a FILL that carries white text, never a text colour (3.3:1 on the light wallpaper, 2.1:1 on the dark) */
+    --cg-bg: #eaf7f5; /* Mist: page base under the aurora */
+    --cg-navy: #0b1f3a; /* Ink Navy, fixed: text on amber and on the teal tint */
+    --cg-teal: #00b8a0; /* Clarity Teal */
+    --cg-teal-deep: #00806e; /* solid accent that carries white text (4.87:1) */
+    --cg-amber: #f5b544; /* Amber Coin: credits / wallet only */
+    --cg-coral: #d7373f; /* decline / destructive fills that carry white text (4.66:1) */
+    --cg-on-teal-deep: #ffffff;
+    --cg-on-amber: #0b1f3a;
+    --cg-on-coral: #ffffff;
+    --cg-coral-text: #b3232b; /* coral as text or glyph on glass and inset tiles */
+    --cg-teal-text: #006f60; /* teal as text or glyph (links, accent labels) on glass and inset tiles; NOT on the wallpaper */
+    --cg-amber-text: #7a4f00; /* amber-family text on glass / on the amber wash */
+    --cg-amber-wash: rgba(245, 181, 68, 0.22); /* quiet amber tag background */
+
+    /* text, lines, scrim, focus */
+    --cg-text: #0b1f3a;
+    --cg-text-2: #2b4263;
+    --cg-text-3: #4f657f;
+    --cg-line: rgba(11, 31, 58, 0.1);
+    --cg-line-strong: rgba(11, 31, 58, 0.6); /* the visible border of every opaque fallback (3:1 on the solids) */
+    --cg-highlight: rgba(255, 255, 255, 0.7); /* specular top edge */
+    --cg-scrim: rgba(11, 31, 58, 0.45);
+    --cg-focus: #00806e; /* 2px ring, 2px offset: >= 3:1 on every worst-case glass and wallpaper colour */
+
+    /* glass fills (frosted: used with backdrop-filter) and their opaque fallbacks */
+    --cg-fill-thin: rgba(255, 255, 255, 0.58);
+    --cg-fill-regular: rgba(255, 255, 255, 0.66);
+    --cg-fill-thick: rgba(255, 255, 255, 0.8);
+    --cg-fill-tint: linear-gradient(180deg, rgba(0, 196, 172, 0.82), rgba(0, 170, 148, 0.82)); /* no blur */
+    --cg-fill-inset: rgba(255, 255, 255, 0.45); /* tiles ON glass: never blurred */
+    --cg-on-tint: #0b1f3a;
+    --cg-focus-on-tint: #0b1f3a; /* = --cg-on-tint: the focus ring inside a cg-glass-tint scope (--cg-focus is 1.86:1 on the tint) */
+    --cg-tint-edge: rgba(0, 128, 110, 0.35);
+    --cg-solid-thin: #f0f9f7;
+    --cg-solid-regular: #f5fbfa;
+    --cg-solid-thick: #ffffff;
+    --cg-solid-tint: #27c2ad;
+    --cg-solid-inset: #e7f5f2;
+
+    /* the calm veil between the wallpaper and the room / home pane (keeps Compound text-secondary >= 4.5:1). The alpha is
+       ONE token: lower it to let more aurora through (a11yContrast-test.ts fails if Compound text drops below 4.5:1) */
+    --cg-pane-wash-alpha: 0.35;
+    --cg-pane-wash: rgba(255, 255, 255, var(--cg-pane-wash-alpha));
+
+    /* placeholder blocks */
+    --cg-skeleton: rgba(11, 31, 58, 0.08);
+
+    /* elevation: layered soft shadows tinted with Ink Navy, never pure black */
+    --cg-e1: 0 1px 2px rgba(11, 31, 58, 0.06), 0 2px 8px rgba(11, 31, 58, 0.06);
+    --cg-e2: 0 2px 4px rgba(11, 31, 58, 0.05), 0 8px 24px rgba(11, 31, 58, 0.1);
+    --cg-e3: 0 4px 8px rgba(11, 31, 58, 0.06), 0 16px 48px rgba(11, 31, 58, 0.16), 0 32px 64px rgba(11, 31, 58, 0.1);
+
+    /* aurora wallpaper: 4 soft radial gradients (teal top-left, periwinkle right, aqua bottom, a breath of amber) */
+    --cg-aurora: radial-gradient(60% 50% at 8% 6%, rgba(0, 184, 160, 0.34), rgba(0, 184, 160, 0) 70%),
+        radial-gradient(55% 55% at 94% 22%, rgba(61, 123, 255, 0.24), rgba(61, 123, 255, 0) 70%),
+        radial-gradient(70% 55% at 55% 104%, rgba(52, 224, 200, 0.32), rgba(52, 224, 200, 0) 72%),
+        radial-gradient(40% 40% at 98% 98%, rgba(245, 181, 68, 0.08), rgba(245, 181, 68, 0) 70%);
+
+    /* shape: concentric rule, inner radius = outer radius - padding */
+    --cg-r-xs: 8px;
+    --cg-r-sm: 12px;
+    --cg-r-md: 16px;
+    --cg-r-lg: 22px;
+    --cg-r-xl: 28px;
+    --cg-r-pill: 999px;
+
+    /* type scale (rem: follows the user's font-size setting) */
+    --cg-fs-xs: 0.75rem;
+    --cg-fs-sm: 0.8125rem;
+    --cg-fs-md: 0.9375rem;
+    --cg-fs-lg: 1.0625rem;
+    --cg-fs-xl: 1.25rem;
+    --cg-fs-2xl: 1.75rem;
+    --cg-fs-3xl: 2.25rem;
+    --cg-fs-4xl: 3rem;
+
+    /* local stacking scale (upstream dialogs 4000+, context menus 5000+ and toasts 101 keep their own) */
+    --cg-z-content: 0;
+    --cg-z-chrome: 10;
+    --cg-z-float: 20;
+    --cg-z-menu: 40;
+    --cg-z-dialog: 60;
+    --cg-z-toast: 80;
+
+    /* material recipe numbers */
+    --cg-blur-thin: 14px;
+    --cg-blur-regular: 24px;
+    --cg-blur-thick: 36px;
+    --cg-blur-scrim: 6px;
+    --cg-sat-thin: 170%;
+    --cg-sat-regular: 180%;
+    --cg-sat-thick: 190%;
+}
+
+/* dark: designed with the light theme, not inverted */
+:root[data-clariva] body[class*="cpd-theme-dark"] {
+    --cg-bg: #06141f; /* Deep Sea */
+    --cg-navy: #0b1f3a;
+    --cg-teal: #2fd9c1;
+    --cg-teal-deep: #0a8072; /* nudged from #12a593, which only reaches 3.1:1 with white text (this is 4.83:1) */
+    --cg-amber: #f5b544;
+    --cg-coral: #d13c44; /* fill that carries white text (4.73:1); --cg-coral-text is the light coral for glyphs */
+    --cg-on-teal-deep: #ffffff;
+    --cg-on-amber: #0b1f3a;
+    --cg-on-coral: #ffffff;
+    --cg-coral-text: #ff8a8f; /* nudged from #ff6b72, which is 3.8:1 on an inset tile */
+    --cg-teal-text: #2fd9c1;
+    --cg-amber-text: #f8c569; /* nudged from #f5b544, which is 4.2:1 on the amber wash on an inset tile */
+    --cg-amber-wash: rgba(245, 181, 68, 0.18);
+
+    /* text, lines, scrim, focus */
+    --cg-text: #eaf6f4;
+    --cg-text-2: #b6cbd0;
+    --cg-text-3: #98b1b8;
+    --cg-line: rgba(234, 246, 244, 0.12);
+    --cg-line-strong: rgba(234, 246, 244, 0.6);
+    --cg-highlight: rgba(255, 255, 255, 0.16);
+    --cg-scrim: rgba(2, 8, 14, 0.62);
+    --cg-focus: #2fd9c1;
+
+    /* glass fills and their opaque fallbacks */
+    --cg-fill-thin: rgba(12, 32, 48, 0.46);
+    --cg-fill-regular: rgba(12, 32, 48, 0.52);
+    --cg-fill-thick: rgba(12, 32, 48, 0.7);
+    --cg-fill-tint: linear-gradient(180deg, rgba(0, 126, 108, 0.84), rgba(0, 104, 92, 0.84));
+    --cg-fill-inset: rgba(255, 255, 255, 0.06);
+    --cg-on-tint: #eaf6f4;
+    --cg-focus-on-tint: #eaf6f4;
+    --cg-tint-edge: rgba(255, 255, 255, 0.14);
+    --cg-solid-thin: #0f2638;
+    --cg-solid-regular: #0e2232;
+    --cg-solid-thick: #132c3f;
+    --cg-solid-tint: #0b6b5f;
+    --cg-solid-inset: #183349;
+
+    /* the veil between the wallpaper and the room / home pane (alpha: --cg-pane-wash-alpha, declared once above) */
+    --cg-pane-wash: rgba(6, 20, 31, var(--cg-pane-wash-alpha));
+
+    /* placeholder blocks */
+    --cg-skeleton: rgba(234, 246, 244, 0.1);
+
+    /* elevation */
+    --cg-e1: 0 1px 2px rgba(0, 6, 12, 0.4), 0 2px 8px rgba(0, 6, 12, 0.3);
+    --cg-e2: 0 2px 4px rgba(0, 6, 12, 0.35), 0 8px 24px rgba(0, 6, 12, 0.45);
+    --cg-e3: 0 4px 8px rgba(0, 6, 12, 0.4), 0 16px 48px rgba(0, 6, 12, 0.55), 0 32px 64px rgba(0, 6, 12, 0.4);
+
+    /* aurora wallpaper */
+    --cg-aurora: radial-gradient(60% 50% at 8% 6%, rgba(47, 217, 193, 0.26), rgba(47, 217, 193, 0) 70%),
+        radial-gradient(55% 55% at 94% 22%, rgba(61, 123, 255, 0.22), rgba(61, 123, 255, 0) 70%),
+        radial-gradient(70% 55% at 55% 104%, rgba(52, 224, 200, 0.22), rgba(52, 224, 200, 0) 72%),
+        radial-gradient(40% 40% at 98% 98%, rgba(245, 181, 68, 0.06), rgba(245, 181, 68, 0) 70%);
+}

@@ -1,0 +1,312 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Accessibility, touch and motion pass over the whole Clariva UI. Imported LAST from _clariva.pcss; every rule is scoped
+ * under `:root[data-clariva]` (set by src/clariva/rootMarker.ts), so stock Element is untouched without a Clariva API.
+ *
+ * Contrast (WCAG 2.1 AA, computed from the Compound token values in both themes; text >= 4.5:1, icons / borders >= 3:1):
+ *   - text-secondary on bg-subtle-secondary is 4.7:1 and on bg-subtle-primary only 4.2:1, so a surface that uses
+ *     bg-subtle-primary must not carry text-secondary (the selected chat row switches to a darker mix, see _chats.pcss).
+ *   - text-placeholder is 3.5:1: placeholders use text-secondary (5.2:1) instead.
+ *   - bubbles: every secondary string inside a bubble is remapped to --clariva-bubble-meta (>= 5.1:1 on both fills).
+ *   - the landing page text sits on a gradient: shares in _brand.pcss (>= 5.0:1 over every stop).
+ * Touch: >= 44px targets (with an 8px gap) at <= 768px or on a coarse pointer; 16px text fields so iOS does not zoom.
+ * Motion: 150-250ms enter, transform / opacity only; everything is neutralised for prefers-reduced-motion.
+ * Specificity: the "fallback" rules (focus ring, touch-action, cursor) are wrapped in :where(), so any rule that names a
+ * specific element still wins; the rest are scoped with :root[data-clariva] (0,2,0) to out-rank the upstream partials.
+ */
+
+/* ───────────────────────────── page-level ───────────────────────────── */
+
+/* iOS Safari inflates text in landscape unless told not to; a layout designed for 14-17px must not drift */
+:root[data-clariva] {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+/* Clickable things look and behave clickable, and a tap never waits for the double-tap-zoom delay (zero specificity) */
+:where(:root[data-clariva])
+    :where(
+        a[href],
+        button,
+        [role="button"],
+        [role="switch"],
+        [role="tab"],
+        [role="menuitem"],
+        [role="option"],
+        summary,
+        label[for],
+        select,
+        input[type="checkbox"],
+        input[type="radio"]
+    ) {
+    touch-action: manipulation;
+}
+
+:where(:root[data-clariva])
+    :where(
+        a[href],
+        button:not(:disabled),
+        [role="button"]:not([aria-disabled="true"]),
+        [role="switch"]:not([aria-disabled="true"]),
+        [role="tab"],
+        [role="menuitem"],
+        summary,
+        label[for],
+        select:not(:disabled),
+        input[type="checkbox"]:not(:disabled),
+        input[type="radio"]:not(:disabled)
+    ) {
+    cursor: pointer;
+}
+
+/*
+ * ONE focus colour for the whole Clariva UI: --cg-focus (_brand.pcss; Deep Teal #00806e in light, Teal #2fd9c1 in dark).
+ * Measured by test/clariva/designTokens-test.ts and a11yContrast-test.ts: >= 3:1 on the Compound canvas and subtle
+ * surfaces, on every glass fill over the worst-case aurora point, and on the bare wallpaper, in both themes. Compound
+ * draws its own rings with --cpd-color-border-focused, so that token is re-pointed here; every stock and Clariva rule
+ * that reads it (the many `outline: 2px solid var(--cpd-color-border-focused)` in the partials) follows without being
+ * edited. High-contrast themes (-hc) keep Compound's stronger colour.
+ */
+:root[data-clariva] body:not([class*="-hc"]) {
+    --cpd-color-border-focused: var(--cg-focus);
+}
+
+/*
+ * One visible keyboard focus ring for everything interactive that has no ring of its own: 2px, offset 2px, --cg-focus.
+ * Only the :focus-visible part counts for specificity, so a stock or Clariva rule for a specific element (including the
+ * inset rings inside clipped lists) wins.
+ */
+:where(:root[data-clariva])
+    :where(
+        a[href],
+        button,
+        [role="button"],
+        [role="switch"],
+        [role="tab"],
+        [role="menuitem"],
+        [role="option"],
+        summary,
+        select,
+        input[type="checkbox"],
+        input[type="radio"],
+        .mx_AccessibleButton
+    ):focus-visible {
+    outline: 2px solid var(--cg-focus, var(--cpd-color-border-focused));
+    outline-offset: 2px;
+}
+
+/* ───────────────────────────── contrast ───────────────────────────── */
+
+/* A placeholder is text: text-placeholder (3.5:1) -> text-secondary (5.2:1). Labels stay visible; this is only a hint. */
+:root[data-clariva] :is(input, textarea):not(:disabled)::placeholder {
+    color: var(--cpd-color-text-secondary);
+    opacity: 1;
+}
+
+/*
+ * Secondary text INSIDE a message bubble (edited marker, file size, voice clock, quoted names, thread summary, link
+ * previews, ...) is the Compound text-secondary token, which is only 4.2:1 on the outgoing fill (gray-400). Re-pointing the
+ * token for the subtree lifts every one of those strings to the bubble's meta colour (5.1-6.4:1 on both fills, both
+ * themes) without touching each rule. System events and media-only lines sit on the canvas, not a bubble, and are skipped.
+ */
+:root[data-clariva]
+    .mx_EventTile[data-layout="bubble"][data-self]:not(.mx_EventTile_info)
+    .mx_EventTile_line:not(.mx_EventTile_mediaLine) {
+    --cpd-color-text-secondary: var(--clariva-bubble-meta, var(--cpd-color-text-primary));
+}
+
+/* ───────────────────────────── touch targets (<= 768px or a coarse pointer) ───────────────────────────── */
+
+@media (max-width: 768px), (pointer: coarse) {
+    /*
+     * The per-message action bar (react, reply, options) is revealed by tapping a message. Stock makes it 28px; this
+     * makes the buttons 44px and the bar 48px tall, 8px-spaced by the bar's own padding.
+     */
+    :root[data-clariva] .mx_EventTile .mx_MessageActionBar {
+        --MessageActionBar-size-button: 44px;
+        --MessageActionBar-size-box: 48px;
+
+        top: -44px;
+    }
+
+    :root[data-clariva] .mx_EventTile .mx_MessageActionBar .mx_MessageActionBar_iconButton {
+        --MessageActionBar-icon-size: 22px;
+
+        touch-action: manipulation;
+    }
+
+    /* reaction chips stay 32px tall to look right; the tappable area is 44px */
+    :root[data-clariva] .mx_ReactionsRowButton {
+        position: relative;
+
+        &::after {
+            content: "";
+            position: absolute;
+            inset: -6px 0;
+        }
+    }
+
+    /* voice message: the stop button keeps its look (28px), the hit area grows to 44px */
+    :root[data-clariva] .mx_VoiceRecordComposerTile_stop::before {
+        content: "";
+        position: absolute;
+        inset: -8px;
+    }
+
+    /* every Compound "sm" text button (Join, Retry, Approve...) is 36px in the library; icon-only ones are squares */
+    :root[data-clariva] button[data-size="sm"]:not([class*="icon-only"]) {
+        min-block-size: var(--clariva-tap, 44px);
+    }
+
+    /* any context menu (room row "...", message options, space menu...): 44px rows */
+    :root[data-clariva] .mx_IconizedContextMenu .mx_IconizedContextMenu_item {
+        box-sizing: border-box;
+        min-block-size: var(--clariva-tap, 44px);
+    }
+}
+
+/*
+ * Stock puts an incoming bubble's action bar at (bubble width - 32px) and lets it run off to the right; once the bubble
+ * is 80% of a narrow timeline the bar leaves the screen (and, although hidden, widens the scroll area). Anchoring it to
+ * the bubble's start keeps it on screen at any bubble width. Own bubbles are already end-anchored.
+ */
+@media (max-width: 1100px) {
+    :root[data-clariva] .mx_EventTile[data-layout="bubble"][data-self="false"] .mx_MessageActionBar {
+        inset-inline-start: 0;
+        inset-inline-end: auto;
+        right: auto;
+    }
+}
+
+/* ───────────────────────────── phone text fields: 16px, so iOS does not zoom on focus ───────────────────────────── */
+
+@media (max-width: 768px) {
+    :root[data-clariva]
+        :is(
+            input:not([type]),
+            input[type="text"],
+            input[type="search"],
+            input[type="email"],
+            input[type="tel"],
+            input[type="url"],
+            input[type="password"],
+            input[type="number"],
+            textarea,
+            select
+        ):not([class*="mx_Clariva"]) {
+        font-size: max(16px, 100%);
+    }
+}
+
+/* ───────────────────────────── long text never widens a card ───────────────────────────── */
+
+:root[data-clariva]
+    :is(
+        .mx_ClarivaRefundBanner_content,
+        .mx_ClarivaChatRestricted_text,
+        .mx_ClarivaNewSessionDialog_body,
+        .mx_ClarivaCallChooser_body,
+        .mx_ClarivaApproveRefundDialog .mx_Dialog_content,
+        .mx_ClarivaIncomingCall_label,
+        .mx_ClarivaCallStarted_title,
+        .mx_ClarivaMyQr_body
+    ) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* a code block or a wide image inside a bubble scrolls / shrinks instead of pushing the timeline sideways */
+:root[data-clariva] .mx_EventTile[data-layout="bubble"] .mx_EventTile_line .mx_EventTile_content {
+    max-width: 100%;
+
+    pre {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    img,
+    video {
+        max-width: 100%;
+    }
+}
+
+/* ───────────────────────────── windows high-contrast / forced colours ───────────────────────────── */
+
+/* Backgrounds are replaced by system colours in this mode, so state that is carried by a fill needs a system-colour equivalent */
+@media (forced-colors: active) {
+    :root[data-clariva] .mx_ClarivaAuth_switch {
+        forced-color-adjust: none;
+        border-color: ButtonText;
+        background: Canvas;
+
+        &::after {
+            background: ButtonText;
+        }
+
+        &:checked {
+            border-color: Highlight;
+            background: Highlight;
+
+            &::after {
+                background: HighlightText;
+            }
+        }
+    }
+
+    :root[data-clariva] .mx_ClarivaChatFilters_chip_selected .mx_ClarivaChatFilters_chipLabel,
+    :root[data-clariva] .mx_ClarivaRecharge_chip_selected,
+    :root[data-clariva] .mx_UserSettingsDialog .mx_TabbedView_tabLabel_active {
+        forced-color-adjust: none;
+        border-color: Highlight;
+        background: Highlight;
+        color: HighlightText;
+    }
+
+    :root[data-clariva] .mx_RoomTile.mx_RoomTile_clariva.mx_RoomTile_selected {
+        outline: 2px solid Highlight;
+        outline-offset: -2px;
+    }
+}
+
+/* ───────────────────────────── motion ───────────────────────────── */
+
+/*
+ * prefers-reduced-motion: no transitions, no scroll animation and no finite animation anywhere in the Clariva UI (the
+ * partials also switch off their own). Spinners (anything with "pinner" in its class) keep turning: a frozen spinner reads
+ * as a hung screen, and they always sit next to a text status. Zero-length rather than "none" so animationend still fires.
+ */
+@media (prefers-reduced-motion: reduce) {
+    :root[data-clariva] {
+        scroll-behavior: auto !important;
+    }
+
+    :root[data-clariva] *,
+    :root[data-clariva] *::before,
+    :root[data-clariva] *::after {
+        transition-duration: 0.01ms !important;
+        transition-delay: 0s !important;
+    }
+
+    :root[data-clariva] *:not([class*="pinner"]):not([class*="pinner"] *),
+    :root[data-clariva] *:not([class*="pinner"]):not([class*="pinner"] *)::before,
+    :root[data-clariva] *:not([class*="pinner"]):not([class*="pinner"] *)::after {
+        animation-duration: 0.01ms !important;
+        animation-delay: 0s !important;
+        animation-iteration-count: 1 !important;
+    }
+}

@@ -1,0 +1,14 @@
+# Clariva: line endings are normalised in the repository; Windows checkouts are CRLF, but files that run on Linux
+# (Docker build, nginx, shell scripts) must be checked out with LF.
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.conf text eol=lf
+*.locations text eol=lf
+*.locations.example text eol=lf
+*.png binary
+*.ico binary
+*.jpg binary
+*.webp binary
+*.woff binary
+*.woff2 binary

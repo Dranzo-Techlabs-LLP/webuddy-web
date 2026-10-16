@@ -1,0 +1,386 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Clariva chat furniture: the refund workflow and the "chat restricted" gate. Materials come from the "Clear Water"
+ * foundation mixins (docs/clariva/DESIGN-SYSTEM.md): the banner is regular glass (nothing scrolls under it: it sits in the
+ * flow under the floating room header), the toasts and the gate card are floating chrome (thick glass / an inset card in the
+ * composer's thick glass) and carry --cg-text only for text (rule 7).
+ */
+
+/* refunds ----------------------------------------------------------------------------------------------------------- */
+
+/* Client: "Request refund" in the room header (next to the call buttons). Pill, 44px target, label kept (the header
+   narrows it to an icon on phones, see _chatroom.pcss). */
+.mx_ClarivaRefundHeaderButton {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+/* Consultant: "Refund request" banner directly under the room header (spec 03 U4). A flex item of the room column, so it
+   pushes the timeline down instead of covering messages (the header floats above it, _chatroom.pcss gives it its top
+   margin). Regular glass: nothing scrolls under it. Android's content: info icon, title, body, 44px actions. */
+:root[data-clariva] .mx_ClarivaRefundBanner {
+    @mixin cg-glass-regular;
+
+    position: relative;
+    z-index: var(--clariva-z-banner, 2);
+    display: flex;
+    flex: 0 0 auto;
+    align-items: flex-start;
+    gap: var(--cpd-space-3x);
+    box-sizing: border-box;
+    width: calc(100% - var(--cpd-space-8x));
+    max-width: var(--clariva-content-max, 960px);
+    margin: var(--cpd-space-2x) auto 0;
+    padding: var(--cpd-space-4x);
+    border: 0;
+    border-radius: var(--cg-r-lg);
+    color: var(--cg-text);
+
+    .mx_ClarivaRefundBanner_icon {
+        flex: 0 0 auto;
+        width: 24px;
+        height: 24px;
+        color: var(--cg-teal-text);
+        fill: currentColor;
+    }
+
+    .mx_ClarivaRefundBanner_content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .mx_ClarivaRefundBanner_title {
+        font: var(--cpd-font-body-lg-semibold);
+        color: var(--cg-text);
+    }
+
+    .mx_ClarivaRefundBanner_body {
+        margin-top: var(--cpd-space-1x);
+        font: var(--cpd-font-body-md-regular);
+        color: var(--cg-text-2);
+    }
+
+    .mx_ClarivaRefundBanner_actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--cpd-space-2x);
+        margin-top: var(--cpd-space-3x);
+
+        /* Compound sm buttons are 36px tall: lift them to a 44px touch target, primary first. */
+        button[data-size="sm"] {
+            min-block-size: 44px;
+            padding-inline: var(--cpd-space-6x);
+            touch-action: manipulation;
+        }
+    }
+
+    @media (max-width: 480px) {
+        width: calc(100% - var(--cpd-space-6x));
+        padding: var(--cpd-space-3x);
+
+        .mx_ClarivaRefundBanner_actions button[data-size="sm"] {
+            flex: 1 1 120px;
+        }
+    }
+}
+
+/* Consultant: "Approve Refund" dialog (spec 03 U5). Dialog buttons wrap and are 44px tall; the amount input is 16px
+   (no iOS zoom), 44px tall, with an inline error next to it. The dialog itself is _dialogs.pcss's glass. */
+.mx_ClarivaApproveRefundDialog {
+    .mx_ClarivaApproveRefund_option {
+        display: block;
+        margin-bottom: var(--cpd-space-2x);
+    }
+
+    .mx_ClarivaApproveRefund_field {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cpd-space-1x);
+        margin-top: var(--cpd-space-2x);
+    }
+
+    .mx_ClarivaApproveRefund_label {
+        font: var(--cpd-font-body-md-medium);
+        color: var(--cg-text);
+    }
+
+    .mx_ClarivaApproveRefund_input {
+        @mixin cg-inset;
+
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 44px;
+        padding: var(--cpd-space-2x) var(--cpd-space-3x);
+        font: var(--cpd-font-body-lg-regular);
+        color: var(--cg-text);
+        border: 0;
+        border-radius: var(--cg-r-sm);
+        font-variant-numeric: tabular-nums;
+
+        &:focus-visible {
+            outline: 2px solid var(--cg-focus);
+            outline-offset: 1px;
+        }
+
+        &.mx_ClarivaApproveRefund_input_error {
+            box-shadow: inset 0 0 0 2px var(--cg-coral-text);
+        }
+    }
+
+    .mx_ClarivaApproveRefund_support {
+        margin-top: var(--cpd-space-1x);
+        font: var(--cpd-font-body-md-regular);
+        color: var(--cg-text-2);
+
+        &.mx_ClarivaApproveRefund_support_error {
+            color: var(--cg-coral-text);
+            font-weight: var(--cpd-font-weight-medium);
+        }
+    }
+
+    .mx_Dialog_buttons {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: var(--cpd-space-2x);
+    }
+
+    .mx_Dialog_buttons button {
+        min-height: 44px;
+        margin: 0;
+        touch-action: manipulation;
+    }
+
+    @media (max-width: 480px) {
+        .mx_Dialog_buttons button {
+            flex: 1 1 100%;
+            min-width: 0;
+        }
+    }
+}
+
+/* Chat-local toasts (spec 03 U7): zero layout height, the toast overlays the top of the timeline, so it is thick glass with
+   --cg-text only (rule 7). Text carries the meaning (the error variant says what failed; a coral edge is only a hint). The
+   enter is on the glass element itself (an opacity animation on a parent would switch the frost off while it runs). */
+.mx_ClarivaRefundToasts {
+    position: relative;
+    flex: 0 0 auto;
+    height: 0;
+    z-index: var(--clariva-z-local-toast, 100);
+    pointer-events: none;
+
+    .mx_ClarivaRefundToast {
+        @mixin cg-glass-thick;
+
+        position: absolute;
+        top: var(--cpd-space-3x);
+        left: 50%;
+        transform: translateX(-50%);
+        max-width: calc(100% - var(--cpd-space-8x));
+        padding: var(--cpd-space-3x) var(--cpd-space-4x);
+        box-sizing: border-box;
+        font: var(--cpd-font-body-md-medium);
+        color: var(--cg-text);
+        border-radius: var(--cg-r-md);
+        overflow-wrap: anywhere;
+        pointer-events: auto;
+        animation: mx_ClarivaToast_in var(--cg-dur-medium) var(--cg-ease-out) backwards;
+
+        &.mx_ClarivaRefundToast_error {
+            box-shadow:
+                var(--cg-edge),
+                var(--cg-e3),
+                inset 4px 0 0 var(--cg-coral);
+        }
+    }
+}
+
+@keyframes mx_ClarivaToast_in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, calc(-1 * var(--cpd-space-2x)));
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mx_ClarivaRefundToasts .mx_ClarivaRefundToast {
+        animation: none;
+    }
+}
+
+/* Chat list: red "Refund" pill beside the client's name, consultants only (spec 03 U8). */
+.mx_ClarivaRefundPill {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    align-self: center;
+    gap: var(--cpd-space-1x);
+    margin-right: var(--cpd-space-2x);
+    padding: 1px var(--cpd-space-2x);
+    font: var(--cpd-font-body-xs-medium);
+    color: var(--cpd-color-text-critical-primary);
+    background-color: var(--cpd-color-bg-critical-subtle);
+    border-radius: 999px;
+
+    .mx_ClarivaRefundPill_icon {
+        flex: 0 0 auto;
+        color: var(--cpd-color-icon-critical-primary);
+        fill: currentColor;
+    }
+}
+/* /refunds */
+
+/* gate -------------------------------------------------------------------------------------------------------------- */
+
+/* "Chat restricted" card: replaces the whole composer for a client who cannot afford a new session (spec 03 U1). The composer
+   (_chatroom.pcss) is the thick glass; this is an inset card inside it, in Android's content: info icon + text (never colour
+   alone), "Recharge" as a real secondary button (44px) that drops under the text on phones. The card sits on floating
+   chrome, so its text is --cg-text (rule 7). */
+:root[data-clariva] .mx_ClarivaChatRestricted {
+    @mixin cg-inset;
+
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--cpd-space-3x);
+    min-width: 0;
+    margin: 0;
+    padding: var(--cpd-space-3x) var(--cpd-space-4x);
+    box-sizing: border-box;
+    border-radius: var(--cg-r-md);
+    color: var(--cg-text);
+
+    .mx_ClarivaChatRestricted_icon {
+        flex: 0 0 auto;
+        width: 24px;
+        height: 24px;
+        color: var(--cg-teal-text);
+        fill: currentColor;
+    }
+
+    .mx_ClarivaChatRestricted_text {
+        flex: 1 1 200px;
+        min-width: 0;
+    }
+
+    .mx_ClarivaChatRestricted_title {
+        font: var(--cpd-font-body-md-semibold);
+        color: var(--cg-text);
+    }
+
+    .mx_ClarivaChatRestricted_amounts {
+        @mixin cg-numerals;
+
+        margin-top: var(--cpd-space-1x);
+        font-size: var(--cg-fs-sm);
+        line-height: 18px;
+        color: var(--cg-text);
+    }
+
+    /* "Recharge" is a Compound secondary button; left alone it would carry Compound's accent text on the composer's glass
+       (rule 7: --cg-text only) and a Compound border. It is an inset pill like the header's "Request refund". */
+    button.mx_ClarivaChatRestricted_recharge[data-size] {
+        @mixin cg-inset;
+        @mixin cg-press;
+        @mixin cg-focus-ring;
+
+        --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out);
+
+        flex: 0 0 auto;
+        min-block-size: 44px;
+        padding-inline: var(--cpd-space-5x);
+        border: 0;
+        border-radius: var(--cg-r-pill);
+        color: var(--cg-text);
+        font-weight: 600;
+        white-space: nowrap;
+        touch-action: manipulation;
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover:not([aria-disabled="true"]) {
+                background-image: linear-gradient(
+                    color-mix(in srgb, var(--cg-teal) 18%, transparent),
+                    color-mix(in srgb, var(--cg-teal) 18%, transparent)
+                );
+            }
+        }
+    }
+
+    @media (max-width: 480px) {
+        padding: var(--cpd-space-3x);
+
+        button.mx_ClarivaChatRestricted_recharge[data-size] {
+            flex: 1 1 100%;
+        }
+    }
+}
+
+/* "Start a new session?" dialog (spec 03 U2). 44px dialog buttons that stack on phones; the checkbox row is a 44px
+   target. The dialog is _dialogs.pcss's glass (nothing scrolls under it). */
+.mx_ClarivaNewSessionDialog {
+    .mx_ClarivaNewSessionDialog_body {
+        margin: 0 0 var(--cpd-space-4x);
+        font: var(--cpd-font-body-md-regular);
+        color: var(--cg-text-2);
+    }
+
+    .mx_ClarivaNewSessionDialog_never {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        font: var(--cpd-font-body-md-regular);
+        color: var(--cg-text);
+    }
+
+    .mx_Dialog_buttons {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: var(--cpd-space-2x);
+    }
+
+    .mx_Dialog_buttons button {
+        min-height: 44px;
+        margin: 0;
+        touch-action: manipulation;
+    }
+
+    @media (max-width: 480px) {
+        .mx_Dialog_buttons button {
+            flex: 1 1 100%;
+            min-width: 0;
+        }
+    }
+}
+
+/* Chat list: "{n} credits" (the peer consultant's price), a flex item between the title and the badges (spec 03 U8). */
+.mx_ClarivaRoomTileRate {
+    flex: 0 0 auto;
+    align-self: center;
+    margin-right: var(--cpd-space-2x);
+    font: var(--cpd-font-body-xs-regular);
+    color: var(--cpd-color-text-secondary);
+    white-space: nowrap;
+}
+/* /gate */

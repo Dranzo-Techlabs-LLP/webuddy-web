@@ -6,8 +6,8 @@ exports[`<VectorAuthHeaderLogo /> should match snapshot 1`] = `
     class="mx_AuthHeaderLogo"
   >
     <img
-      alt="Element"
-      src="themes/element/img/logos/element-logo.svg"
+      alt="Clariva"
+      src="themes/clariva/img/logos/clariva-logo.svg"
     />
   </aside>
 </DocumentFragment>

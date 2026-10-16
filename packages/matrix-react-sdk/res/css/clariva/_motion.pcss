@@ -1,0 +1,344 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Clariva motion: tokens, mixins and the few shared animations (docs/clariva/DESIGN-SYSTEM.md section 5).
+ *
+ * Build order for every animation: (1) how often is it seen? 100+/day (room switching, shortcuts, list navigation) gets
+ * NO motion; tens/day <= 160ms; occasional (dialogs, toasts, sheets) 180-380ms; rare (sign-in, first recharge) may
+ * delight. (2) name its purpose: feedback, spatial continuity, state change, or avoiding a jarring jump. (3) pick the
+ * tokens below. (4) animate transform and opacity only (clip-path for reveals, height for accordions).
+ *
+ * Never: `transition: all` (name the properties), `ease-in` on UI, `scale(0)` (start at .94-.97 plus opacity), a
+ * transition on backdrop-filter, will-change outside a running animation. Exit is ~65% of the enter duration.
+ * Dialogs / menus / toasts use the transition mixins (interruptible), not keyframes. The spring is for momentum and
+ * delight only (sheet settle, tab indicator, coin glint, ring pulse).
+ *
+ * prefers-reduced-motion (section 4): reduced motion is INSTANT. _a11y.pcss, imported last, holds the blanket rule that
+ * makes every transition and finite animation in the Clariva UI zero-length (!important), so no cross-fade survives it.
+ * Movement tokens are ALSO neutralised at the source here (translate / scale / lift / press scale go to none / 1, and the
+ * pulse, the aurora drift and the coin glint stop), so a surface that reads the tokens behaves even where the blanket
+ * does not reach it.
+ *
+ * COMPOSING TRANSITIONS. cg-press, cg-hover-lift and cg-pressable each set the whole `transition` shorthand, so they
+ * CLOBBER any `transition` the surface declared earlier in the same rule, and a second one of them clobbers the first
+ * (use cg-pressable for press + lift). To keep a surface's own transitions, do NOT write `transition:` next to them:
+ * list them in --cg-transition-extra on the same element, e.g.
+ *     .mx_Foo { @mixin cg-pressable; --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out); }
+ * The list is appended LAST, so an entry for `transform` or `opacity` would override the press timing. The property is
+ * inherited like any custom property: set it on the element that uses the mixin, not on a container.
+ */
+
+/* ───────────── 1. tokens ───────────── */
+
+:root[data-clariva] {
+    --cg-ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* entering, hover, press: the default */
+    --cg-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* things that move on screen, loops */
+    --cg-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* sheets and drawers */
+    --cg-spring: var(--cg-ease-out); /* fallback; the real spring is set under @supports below */
+
+    /* durations */
+    --cg-dur-press: 120ms;
+    --cg-dur-hover: 160ms;
+    --cg-dur-small: 180ms;
+    --cg-dur-medium: 240ms;
+    --cg-dur-sheet: 380ms;
+
+    /* exits are ~65% of the matching enter */
+    --cg-dur-exit-small: 120ms;
+    --cg-dur-exit-medium: 160ms;
+    --cg-dur-exit-sheet: 250ms;
+
+    /* appended to the transition list of cg-press / cg-hover-lift / cg-pressable; "color 0s" is the harmless default */
+    --cg-transition-extra: color 0s;
+
+    /* what press, presence and lift move by (reduced motion sets them to none / 1) */
+    --cg-press-scale: 0.97;
+    --cg-press-opacity: 1;
+    --cg-enter-from: translate3d(0, 6px, 0) scale(0.96);
+    --cg-exit-to: translate3d(0, 4px, 0) scale(0.96);
+    --cg-lift: translate3d(0, -2px, 0);
+}
+
+/* A critically-underdamped spring sampled as a linear() easing (overshoot 1.16, settles in ~1 s at 700 ms). */
+@supports (transition-timing-function: linear(0, 1)) {
+    :root[data-clariva] {
+        --cg-spring: linear(
+            0,
+            0.009,
+            0.035 2.1%,
+            0.141,
+            0.281 6.7%,
+            0.723 12.9%,
+            0.938 16.7%,
+            1.017,
+            1.077,
+            1.121,
+            1.149 24.3%,
+            1.159,
+            1.163,
+            1.161,
+            1.154 29.9%,
+            1.129 32.8%,
+            1.051 39.6%,
+            1.017 43.1%,
+            0.991,
+            0.977 51%,
+            0.974 53.8%,
+            0.975 57.1%,
+            0.997 69.8%,
+            1.003 76.9%,
+            1
+        );
+    }
+}
+
+/* ───────────── 2. keyframes ───────────── */
+
+@keyframes cg-enter {
+    0% {
+        opacity: 0;
+        transform: var(--cg-enter-from);
+    }
+
+    100% {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes cg-exit {
+    0% {
+        opacity: 1;
+        transform: none;
+    }
+
+    100% {
+        opacity: 0;
+        transform: var(--cg-exit-to);
+    }
+}
+
+/* opacity only: a skeleton / waiting state is never a movement */
+@keyframes cg-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* the aurora layer drifts a little and breathes: transform only, ping-pong (animation-direction: alternate) */
+@keyframes cg-aurora-drift {
+    0% {
+        transform: translate3d(-3%, -2%, 0) scale(1);
+    }
+
+    100% {
+        transform: translate3d(3%, 2%, 0) scale(1.05);
+    }
+}
+
+/* a single diagonal sweep across the coin face (CoinIcon with `glint`): the face is clipped to the circle */
+@keyframes cg-glint {
+    0% {
+        opacity: 0;
+        transform: translate3d(-16px, 0, 0);
+    }
+
+    30% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate3d(16px, 0, 0);
+    }
+}
+
+/* ───────────── 3. mixins and utilities ───────────── */
+
+/*
+ * Press feedback on anything pressable: 120ms scale(.97) on :active (a held press must start immediately, so there is no
+ * transition delay), no 300ms tap delay, no grey tap flash. Pass-through when the control is disabled.
+ * WARNING: sets the whole `transition` shorthand (see COMPOSING TRANSITIONS above): put the surface's own transitions in
+ * --cg-transition-extra, never in a `transition:` declaration in the same rule.
+ */
+@define-mixin cg-press {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+        transform var(--cg-dur-press) var(--cg-ease-out),
+        opacity var(--cg-dur-press) var(--cg-ease-out),
+        var(--cg-transition-extra);
+
+    &:active:not(:disabled, [aria-disabled="true"]) {
+        transform: scale(var(--cg-press-scale));
+        opacity: var(--cg-press-opacity);
+    }
+}
+
+/*
+ * Hover lift, only where hover is real (a mouse). A touch screen never sticks in a hover state. Transform only.
+ * WARNING: sets the whole `transition` shorthand and so clobbers cg-press (use cg-pressable for both) and the surface's
+ * own `transition:`; use --cg-transition-extra (see COMPOSING TRANSITIONS above).
+ */
+@define-mixin cg-hover-lift {
+    transition:
+        transform var(--cg-dur-hover) var(--cg-ease-out),
+        var(--cg-transition-extra);
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover:not(:disabled, [aria-disabled="true"]) {
+            transform: var(--cg-lift);
+        }
+    }
+}
+
+/*
+ * Both on one element: one transition list (cg-press + cg-hover-lift would overwrite each other's `transition`).
+ * WARNING: still sets the whole `transition` shorthand, so it clobbers a `transition:` the surface declared earlier in
+ * the rule; a surface that needs its own transitions lists them in --cg-transition-extra on the same element, and they
+ * are composed after the press / lift ones (see COMPOSING TRANSITIONS above).
+ */
+@define-mixin cg-pressable {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+        transform var(--cg-dur-press) var(--cg-ease-out),
+        opacity var(--cg-dur-press) var(--cg-ease-out),
+        var(--cg-transition-extra);
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover:not(:disabled, [aria-disabled="true"]) {
+            transform: var(--cg-lift);
+        }
+    }
+
+    &:active:not(:disabled, [aria-disabled="true"]) {
+        transform: scale(var(--cg-press-scale));
+        opacity: var(--cg-press-opacity);
+    }
+}
+
+/*
+ * Presence by transition (menus, popovers, toasts, dialogs): set the element's closed look with cg-presence-hidden and
+ * its open look with cg-presence-shown, then toggle a class / attribute. The browser uses the TARGET state's transition,
+ * so entering takes the enter duration and leaving ~65% of it, and either direction can be interrupted mid-way.
+ * Set `transform-origin` to the trigger for popovers (they grow out of it); dialogs stay centred.
+ */
+@define-mixin cg-presence-hidden {
+    opacity: 0;
+    transform: var(--cg-enter-from);
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+        opacity var(--cg-dur-exit-medium) var(--cg-ease-out),
+        transform var(--cg-dur-exit-medium) var(--cg-ease-out),
+        visibility 0s linear var(--cg-dur-exit-medium);
+}
+
+@define-mixin cg-presence-shown {
+    opacity: 1;
+    transform: none;
+    visibility: visible;
+    pointer-events: auto;
+    transition:
+        opacity var(--cg-dur-medium) var(--cg-ease-out),
+        transform var(--cg-dur-medium) var(--cg-ease-out),
+        visibility 0s linear 0s;
+}
+
+/*
+ * Presence by animation, for markup that is mounted / unmounted (opacity + translate/scale .96 -> rest).
+ * Fill mode is `backwards`, NEVER `both` / `forwards`: a filled-forwards animation holds opacity and transform at its
+ * last keyframe for as long as the element lives, which would freeze the element against press / hover on it. With
+ * `backwards` the end of the animation hands the properties back to the element's own rules. (cg-exit keeps `both`:
+ * the element is leaving, so it stays at its end state.)
+ */
+@define-mixin cg-enter {
+    animation: cg-enter var(--cg-dur-medium) var(--cg-ease-out) backwards;
+}
+
+@define-mixin cg-exit {
+    animation: cg-exit var(--cg-dur-exit-medium) var(--cg-ease-out) both;
+}
+
+@define-mixin cg-pulse {
+    animation: cg-pulse 1.2s var(--cg-ease-in-out) infinite;
+}
+
+.cg-enter {
+    @mixin cg-enter;
+}
+
+.cg-exit {
+    @mixin cg-exit;
+}
+
+.cg-pulse {
+    @mixin cg-pulse;
+}
+
+.cg-pressable {
+    @mixin cg-pressable;
+}
+
+/* CoinIcon glint: plays once, a moment after mount (state indication for "credits updated", not an idle shimmer) */
+.cg-coin__glint {
+    opacity: 0;
+    animation: cg-glint 900ms var(--cg-ease-out) 400ms 1 both;
+}
+
+/* ───────────── 4. prefers-reduced-motion: the one global switch ───────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    :root[data-clariva] {
+        /* movement tokens neutralised at the source: presence, press and lift lose their translate / scale. (The blanket
+           rule in _a11y.pcss, imported last, then makes every remaining transition and animation instant.) */
+        --cg-enter-from: none;
+        --cg-exit-to: none;
+        --cg-lift: none;
+        --cg-press-scale: 1;
+        --cg-press-opacity: 0.88;
+        --cg-spring: var(--cg-ease-out);
+        --cg-dur-small: 120ms;
+        --cg-dur-medium: 160ms;
+        --cg-dur-sheet: 160ms;
+        --cg-dur-exit-small: 100ms;
+        --cg-dur-exit-medium: 120ms;
+        --cg-dur-exit-sheet: 120ms;
+    }
+
+    /* loops and ambient motion stop; the skeleton stays visible at a calm level */
+    .cg-pulse {
+        animation: none;
+        opacity: 0.7;
+    }
+
+    .cg-aurora--live::before {
+        animation: none;
+        will-change: auto;
+    }
+
+    .cg-coin__glint {
+        animation: none;
+        opacity: 0;
+    }
+}

@@ -1,13 +1,13 @@
-Source: element-web
-Maintainer: support@element.io
+Source: clariva-web
+Maintainer: info@dranzo.com
 Section: web
 Priority: optional
-Homepage: https://element.io/
+Homepage: https://clarivahub.com/
 
-Package: element-web
+Package: clariva-web
 Architecture: all
-Recommends: httpd, element-io-archive-keyring
+Recommends: httpd
 Description:
-  A feature-rich client for Matrix.org
+  Clariva Web - private, paid conversations with trusted experts
   This package contains the web-based client that can be served through a web
-   server.
+   server. It is based on Element Web (AGPL-3.0-only OR GPL-3.0-only).

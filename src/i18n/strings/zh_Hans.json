@@ -16,10 +16,8 @@
         "cannot_load_config": "无法加载配置文件：请刷新页面以重试。",
         "invalid_configuration_mixed_server": "配置无效：无法与 default_server_name 或 default_server_config 一起指定 default_hs_url",
         "invalid_configuration_no_server": "配置无效：没有指定默认服务器。",
-        "invalid_json": "Element 配置文件中包含无效的 JSON。请改正错误并重新加载页面。",
         "invalid_json_detail": "来自解析器的消息：%(message)s",
-        "invalid_json_generic": "无效的 JSON",
-        "misconfigured": "Element 配置错误"
+        "invalid_json_generic": "无效的 JSON"
     },
     "incompatible_browser": {
         "title": "不支持的浏览器"
@@ -27,6 +25,5 @@
     "powered_by_matrix": "由 Matrix 驱动",
     "powered_by_matrix_with_logo": "去中心化、加密的聊天与协作，由 $matrixLogo 驱动",
     "unknown_device": "未知设备",
-    "web_default_device_name": "%(appName)s：%(browserName)s在%(osName)s",
-    "welcome_to_element": "欢迎来到 Element"
+    "web_default_device_name": "%(appName)s：%(browserName)s在%(osName)s"
 }

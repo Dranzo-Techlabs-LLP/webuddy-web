@@ -16,10 +16,8 @@
         "cannot_load_config": "A konfigurációs fájlt nem sikerült betölteni: frissítse az oldalt és próbálja meg újra.",
         "invalid_configuration_mixed_server": "Érvénytelen konfiguráció: a default_hs_url nem adható meg a default_server_name vagy a default_server_config kulcsokkal együtt",
         "invalid_configuration_no_server": "Érvénytelen konfiguráció: nincs megadva alapértelmezett kiszolgáló.",
-        "invalid_json": "Az Element érvénytelen JSON-t tartalmazó konfigurációval rendelkezik. Javítsa és töltse újra az oldalt.",
         "invalid_json_detail": "A feldolgozó algoritmus üzenete: %(message)s",
-        "invalid_json_generic": "Érvénytelen JSON",
-        "misconfigured": "Az Element hibásan van beállítva"
+        "invalid_json_generic": "Érvénytelen JSON"
     },
     "incompatible_browser": {
         "title": "Nem támogatott böngésző"
@@ -27,6 +25,5 @@
     "powered_by_matrix": "A gépházban: Matrix",
     "powered_by_matrix_with_logo": "Elosztott, titkosított csevegés és együttműködés ezzel: $matrixLogo",
     "unknown_device": "Ismeretlen eszköz",
-    "web_default_device_name": "%(appName)s: (%(browserName)s itt: %(osName)s)",
-    "welcome_to_element": "Üdvözli az Element"
+    "web_default_device_name": "%(appName)s: (%(browserName)s itt: %(osName)s)"
 }

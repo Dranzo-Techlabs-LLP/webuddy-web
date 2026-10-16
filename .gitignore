@@ -4,7 +4,9 @@
 /key.pem
 /lib
 /node_modules
-/packages/
+# NOTE: /packages/ is intentionally NOT ignored: packages/matrix-react-sdk is the vendored, Clariva-modified
+# fork of matrix-react-sdk (see docs/clariva/PLAN.md). Only its install artefacts are ignored:
+/packages/*/node_modules
 /webapp
 /.npmrc
 /*.log

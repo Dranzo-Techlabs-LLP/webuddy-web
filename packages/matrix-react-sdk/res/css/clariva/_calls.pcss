@@ -1,0 +1,893 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Clariva calls, "Clear Water" glass edition (docs/clariva/DESIGN-SYSTEM.md section 6, "Calls"). Materials, motion and
+ * type come from the foundation mixins (_glass / _motion / _fonts); this file only decides WHERE they go.
+ *
+ *   - ring toast ........ the toast SHELL is the one thick glass sheet (`.mx_ClarivaIncomingCallToast`); everything
+ *                         inside it is flat (rule 1: never nest a blur). Accept = Deep Teal, Reject = coral: solid fills
+ *                         that carry white text, so their contrast does not depend on what is behind the toast.
+ *   - essential text ..... on the ring toast it is --cg-text ONLY (rule 7: a toast floats over arbitrary content, and
+ *                         --cg-text-2 on dark thick glass over a white document is 3.7:1). Hierarchy is size and face.
+ *   - header controls .... inset tiles, not glass-thin: the room header is thick glass already (rule 1).
+ *   - call frame ......... nothing blurred ever overlaps the call video (rule 6): the title strip sits ABOVE the frame.
+ *                         The Element Call iframe is not in .mx_CallView: it lives in #mx_PersistedElement_container and
+ *                         is positioned over the placeholder, so the rounding / edge are applied to .mx_AppTileBody--call.
+ *   - motion ............. the ring loop and the toast enter only; reduced motion is the token layer (_motion / _a11y)
+ *                         plus one explicit stop for the ring loop at the end of this file.
+ *
+ * Specificity: everything starts with :root[data-clariva] so it out-ranks the stock partials and the older Clariva rules.
+ */
+
+/* ── shared pills ─────────────────────────────────────────────────────────────────────────────────────────────── */
+
+/* The shape of Accept / Reject / Join: a 44px+ pill with an icon and a word (the word, not the colour, says what it is). */
+@define-mixin clariva-call-pill {
+    @mixin cg-press;
+    @mixin cg-focus-ring;
+
+    --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out);
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--cpd-space-2x);
+    box-sizing: border-box;
+    min-height: var(--clariva-tap, 44px);
+    padding-inline: var(--cpd-space-5x);
+    border: 0;
+    border-radius: var(--cg-r-pill);
+    font-family: var(--cg-font-ui);
+    font-size: var(--cg-fs-md);
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+
+    svg {
+        flex: 0 0 auto;
+        color: inherit;
+        fill: currentColor;
+    }
+}
+
+/* Deep Teal with white text (4.87:1 light, 4.83:1 dark): accept, join. */
+@define-mixin clariva-call-pill-teal {
+    @mixin clariva-call-pill;
+
+    background-color: var(--cg-teal-deep);
+    color: var(--cg-on-teal-deep);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover:not([aria-disabled="true"]) {
+            background-color: color-mix(in srgb, var(--cg-teal-deep) 86%, black);
+        }
+    }
+
+    &:active:not([aria-disabled="true"]) {
+        background-color: color-mix(in srgb, var(--cg-teal-deep) 78%, black);
+    }
+}
+
+/* Coral with white text (4.66:1 light, 4.73:1 dark): reject. */
+@define-mixin clariva-call-pill-coral {
+    @mixin clariva-call-pill;
+
+    background-color: var(--cg-coral);
+    color: var(--cg-on-coral);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover:not([aria-disabled="true"]) {
+            background-color: color-mix(in srgb, var(--cg-coral) 86%, black);
+        }
+    }
+
+    &:active:not([aria-disabled="true"]) {
+        background-color: color-mix(in srgb, var(--cg-coral) 78%, black);
+    }
+}
+
+/* ── header call buttons (ClarivaCallControls, inside the room header) ───────────────────────────────────────────── */
+
+:root[data-clariva] .mx_RoomHeader {
+    /* Start / maximise / close: 44px round inset tiles (the header is thick glass: a blur here would nest, rule 1) */
+    button.mx_ClarivaCallControl_start,
+    button.mx_ClarivaCallControl_toggle,
+    button.mx_ClarivaCallControl_close {
+        @mixin cg-inset;
+        @mixin cg-pressable;
+        @mixin cg-focus-ring;
+
+        --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out);
+        --clariva-call-wash: color-mix(in srgb, var(--cg-teal) 20%, transparent);
+
+        box-sizing: border-box;
+        inline-size: var(--clariva-tap, 44px);
+        block-size: var(--clariva-tap, 44px);
+        padding: 10px;
+        border-radius: var(--cg-r-pill);
+        color: var(--cg-text);
+
+        svg {
+            inline-size: 24px;
+            block-size: 24px;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover:not([aria-disabled="true"]) {
+                background-image: linear-gradient(var(--clariva-call-wash), var(--clariva-call-wash));
+                color: var(--cg-text);
+            }
+        }
+
+        /* disabled: no tile, a half-faded glyph (the tooltip says why) */
+        &[aria-disabled="true"] {
+            background-color: transparent;
+            box-shadow: none;
+            color: var(--cg-text);
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    }
+
+    /*
+     * "Start a call" is the one action of the header that is not navigation, so it rests with a soft teal wash over its
+     * inset tile (the info / threads icons beside it stay bare); hover deepens the wash. The glyph stays --cg-text (rule 7).
+     */
+    button.mx_ClarivaCallControl_start {
+        --clariva-call-rest: color-mix(in srgb, var(--cg-teal) 16%, transparent);
+
+        background-image: linear-gradient(var(--clariva-call-rest), var(--clariva-call-rest));
+
+        &[aria-disabled="true"] {
+            background-image: none;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover:not([aria-disabled="true"]) {
+                --clariva-call-wash: color-mix(in srgb, var(--cg-teal) 28%, transparent);
+            }
+        }
+    }
+
+    /* connected here: a Deep Teal disc says "you are in a call" (the button maximises / minimises it) */
+    button.mx_ClarivaCallControl_live {
+        background-color: var(--cg-teal-deep);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+        color: var(--cg-on-teal-deep);
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover:not([aria-disabled="true"]) {
+                background-image: none;
+                background-color: color-mix(in srgb, var(--cg-teal-deep) 86%, black);
+                color: var(--cg-on-teal-deep);
+            }
+        }
+    }
+
+    /* Join (a call is running): Deep Teal pill, the icon of the call type + "Join" */
+    button.mx_ClarivaCallControl_join {
+        @mixin clariva-call-pill-teal;
+
+        padding-inline: var(--cpd-space-4x) var(--cpd-space-5x);
+
+        &[aria-disabled="true"] {
+            background-color: var(--cg-surface-inset) !important;
+            box-shadow: var(--cg-edge-flat);
+            color: var(--cg-text) !important;
+            opacity: 0.55;
+            cursor: not-allowed;
+
+            > svg {
+                color: var(--cg-text) !important;
+            }
+        }
+    }
+}
+
+/* ── "Start a call" chooser (spec 04 §2.2) ───────────────────────────────────────────────────────────────────────── */
+
+:root[data-clariva] .mx_ClarivaCallChooser {
+    .mx_ClarivaCallChooser_body {
+        margin: 0 0 var(--cpd-space-4x);
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-md);
+        line-height: 1.45;
+    }
+
+    .mx_ClarivaCallChooser_options {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cpd-space-3x);
+        min-width: min(300px, 100%); /* a 320px screen must not push the dialog off the edge */
+    }
+
+    /* Voice call / Video call: two big inset tiles, an icon disc and the label; hover and keyboard focus lift them */
+    .mx_ClarivaCallChooser_option {
+        @mixin cg-inset;
+        @mixin cg-pressable;
+        @mixin cg-focus-ring;
+
+        --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out),
+            box-shadow var(--cg-dur-hover) var(--cg-ease-out);
+        --clariva-call-wash: color-mix(in srgb, var(--cg-teal) 16%, transparent);
+
+        display: flex;
+        align-items: center;
+        gap: var(--cpd-space-4x);
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 64px;
+        padding: var(--cpd-space-3x) var(--cpd-space-5x) var(--cpd-space-3x) var(--cpd-space-3x);
+        border: 0;
+        border-radius: var(--cg-r-md);
+        color: var(--cg-text);
+        font-family: var(--cg-font-ui);
+        font-size: var(--cg-fs-lg);
+        font-weight: 600;
+        line-height: 1.25;
+        text-align: start;
+        cursor: pointer;
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover {
+                background-image: linear-gradient(var(--clariva-call-wash), var(--clariva-call-wash));
+                box-shadow:
+                    inset 0 0 0 1px color-mix(in srgb, var(--cg-teal) 60%, transparent),
+                    inset 0 1px 0 var(--cg-highlight);
+            }
+        }
+
+        /* keyboard "selected": the same lift as hover, so a keyboard user sees which option Enter will take */
+        &:focus-visible {
+            background-image: linear-gradient(var(--clariva-call-wash), var(--clariva-call-wash));
+            box-shadow:
+                inset 0 0 0 1px color-mix(in srgb, var(--cg-teal) 60%, transparent),
+                inset 0 1px 0 var(--cg-highlight);
+        }
+    }
+
+    .mx_ClarivaCallChooser_icon {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        inline-size: 40px;
+        block-size: 40px;
+        border-radius: 50%;
+        background-color: color-mix(in srgb, var(--cg-teal) 18%, transparent);
+        color: var(--cg-teal-text);
+
+        svg {
+            fill: currentColor;
+        }
+    }
+
+    .mx_ClarivaCallChooser_label {
+        flex: 1;
+        min-width: 0;
+    }
+
+    /* Cancel: the quiet secondary pill */
+    .mx_ClarivaCallChooser_cancel {
+        @mixin cg-press;
+        @mixin cg-focus-ring;
+
+        --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out);
+
+        box-sizing: border-box;
+        width: 100%;
+        min-height: var(--clariva-tap, 44px);
+        padding-inline: var(--cpd-space-5x);
+        border: 0;
+        border-radius: var(--cg-r-pill);
+        background-color: transparent;
+        box-shadow: var(--cg-edge-flat);
+        color: var(--cg-text);
+        font-family: var(--cg-font-ui);
+        font-size: var(--cg-fs-md);
+        font-weight: 600;
+        cursor: pointer;
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover {
+                background-color: var(--cg-surface-inset);
+            }
+        }
+    }
+}
+
+/* ── incoming call (the ring toast, spec 04 §2.6) ─────────────────────────────────────────────────────────────── */
+
+/* the two rings behind the avatar: scale grows with the ease-out token, opacity fades linearly (a ping, not a bounce) */
+@keyframes mx_ClarivaRingGrow {
+    from {
+        transform: scale(1);
+    }
+
+    to {
+        transform: scale(1.5);
+    }
+}
+
+@keyframes mx_ClarivaRingFade {
+    from {
+        opacity: 0.5;
+    }
+
+    to {
+        opacity: 0;
+    }
+}
+
+/*
+ * The sheet. The toast shell (.mx_Toast_toast, rendered by ToastContainer) is the one blurred layer; the runtime tags it
+ * (`className: "mx_ClarivaIncomingCallToast"` in showRing; its body is `mx_ClarivaIncomingCall`). 22px radius, 16px
+ * padding (the rings reach 14px past the avatar, so the shell's clip never cuts them), 320px at most, clamped to the
+ * container on phones (_dialogs.pcss centres the container there). Enter: 240ms, translateY(-8px) + scale(.98) + fade,
+ * ease-out (an exit is not possible: ToastContainer unmounts the toast at once).
+ */
+:root[data-clariva] .mx_ToastContainer .mx_Toast_toast.mx_ClarivaIncomingCallToast {
+    @mixin cg-glass-thick;
+    @mixin cg-enter;
+
+    --cg-enter-from: translate3d(0, -8px, 0) scale(0.98);
+
+    display: block;
+    box-sizing: border-box;
+    max-width: 320px;
+    padding: var(--cpd-space-4x);
+    border: 0;
+    border-radius: var(--cg-r-lg);
+    color: var(--cg-text);
+}
+
+:root[data-clariva] .mx_ClarivaIncomingCall {
+    box-sizing: border-box;
+
+    /* fixed intrinsic width (a percentage inside min() is cyclic in the shrink-to-fit desktop toast and would let the card
+       resize when the sound hint appears), clamped on narrow toasts */
+    width: 288px;
+    max-width: 100%;
+    pointer-events: initial; /* the toast container ignores the pointer by default; Accept/Reject must work */
+
+    .mx_ClarivaIncomingCall_content {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cpd-space-4x);
+        min-width: 0;
+    }
+
+    .mx_ClarivaIncomingCall_head {
+        display: flex;
+        align-items: center;
+        gap: var(--cpd-space-5x); /* the rings reach 14px past the avatar: keep them off the name */
+        min-width: 0;
+    }
+
+    .mx_ClarivaIncomingCall_avatar {
+        position: relative;
+        flex: 0 0 56px;
+        inline-size: 56px;
+        block-size: 56px;
+        border-radius: 50%;
+    }
+
+    .mx_ClarivaIncomingCall_face {
+        position: relative; /* above the rings */
+        z-index: 1;
+        display: block;
+        inline-size: 56px;
+        block-size: 56px;
+        border-radius: 50%;
+        line-height: 0;
+    }
+
+    /*
+     * The resting look is two soft halos: it is what reduced motion shows, and what the first frame of the loop starts
+     * from. The loop itself is two animations (transform, opacity) on the compositor, 2s, the second ring 0.6s behind;
+     * `backwards` holds the first keyframe during that delay. A hidden tab pauses it (`.cg-paused`).
+     */
+    .mx_ClarivaIncomingCall_ring {
+        position: absolute;
+        inset: 0;
+        border: 2px solid var(--cg-teal);
+        border-radius: 50%;
+        background-color: color-mix(in srgb, var(--cg-teal) 14%, transparent);
+        opacity: 0.32;
+        transform: scale(1.2);
+        pointer-events: none;
+        animation:
+            mx_ClarivaRingGrow 2s var(--cg-ease-out) infinite backwards,
+            mx_ClarivaRingFade 2s linear infinite backwards;
+    }
+
+    .mx_ClarivaIncomingCall_ring_second {
+        opacity: 0.16;
+        transform: scale(1.4);
+        animation-delay: 0.6s;
+    }
+
+    .mx_ClarivaIncomingCall_avatar.cg-paused .mx_ClarivaIncomingCall_ring {
+        animation-play-state: paused;
+    }
+
+    .mx_ClarivaIncomingCall_info {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    /* the caller's name is user content: one line, ellipsis (the full name is the group's accessible name and a tooltip) */
+    .mx_ClarivaIncomingCall_name {
+        @mixin cg-display-sm;
+
+        overflow: hidden;
+        color: var(--cg-text);
+        font-size: var(--cg-fs-xl);
+        line-height: 1.25;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mx_ClarivaIncomingCall_label {
+        color: var(--cg-text);
+        font-family: var(--cg-font-ui);
+        font-size: var(--cg-fs-sm);
+        font-weight: 500;
+        line-height: 1.35;
+    }
+
+    /*
+     * Shown while the browser's autoplay policy keeps the ringtone silent; any click on the page lifts it. It is the
+     * LAST child of the content, below Accept / Reject, and has no margin of its own (the content's gap spaces it): its
+     * appearing and disappearing never moves the buttons, so the click that unlocks the sound cannot miss one.
+     */
+    .mx_ClarivaIncomingCall_soundHint {
+        @mixin cg-inset;
+
+        padding: var(--cpd-space-2x) var(--cpd-space-3x);
+        border-radius: var(--cg-r-sm);
+        color: var(--cg-text);
+        font-family: var(--cg-font-ui);
+        font-size: var(--cg-fs-sm);
+        font-weight: 500;
+        line-height: 1.4;
+        text-align: center;
+    }
+
+    .mx_ClarivaIncomingCall_buttons {
+        display: flex;
+        gap: var(--cpd-space-3x);
+    }
+
+    .mx_ClarivaIncomingCall_accept {
+        @mixin clariva-call-pill-teal;
+    }
+
+    .mx_ClarivaIncomingCall_reject {
+        @mixin clariva-call-pill-coral;
+    }
+
+    /* Accept / Reject: 48px tall, 120px wide at least, two to a row down to a 256px toast (2 x 120 + 12). Declared AFTER
+       the pill mixins (same specificity, the later rule wins: the pills are 44px by default). */
+    .mx_ClarivaIncomingCall_button {
+        flex: 1 1 0;
+        min-width: 120px;
+        min-height: 48px;
+    }
+}
+
+/*
+ * The "couldn't join" toast keeps its behaviour (GenericToast, runtime.ts) and takes the same sheet; its title gets a
+ * coral-text icon. The runtime tags it (`className: "mx_ClarivaJoinFailedToast"` in showJoinFailed); without the tag these
+ * rules simply do not match and the toast stays the generic glass one of _dialogs.pcss.
+ */
+:root[data-clariva] .mx_ToastContainer .mx_Toast_toast.mx_ClarivaJoinFailedToast {
+    @mixin cg-glass-thick;
+    @mixin cg-enter;
+
+    --cg-enter-from: translate3d(0, -8px, 0) scale(0.98);
+
+    border: 0;
+    border-radius: var(--cg-r-lg);
+    color: var(--cg-text);
+
+    .mx_Toast_title h2 {
+        color: var(--cg-text);
+    }
+
+    .mx_Toast_title::before {
+        content: "";
+        flex: 0 0 auto;
+        inline-size: 20px;
+        block-size: 20px;
+        background-color: var(--cg-coral-text);
+        mask-image: url("@vector-im/compound-design-tokens/icons/error.svg");
+        mask-position: center;
+        mask-repeat: no-repeat;
+        mask-size: contain;
+    }
+
+    .mx_Toast_description {
+        color: var(--cg-text);
+    }
+}
+
+/* ── "Call started" timeline row (spec 04 §2.3) ──────────────────────────────────────────────────────────────── */
+
+.mx_ClarivaCallStarted_wrapper {
+    display: flex;
+    width: 100%;
+}
+
+/* An inset tile (no blur: a timeline can hold many). Older tiles are quiet; the live one has a teal edge and icon. */
+:root[data-clariva] .mx_ClarivaCallStarted {
+    @mixin cg-inset;
+
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--cpd-space-3x);
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 600px;
+    padding: var(--cpd-space-3x);
+    border: 0;
+    border-radius: var(--cg-r-md);
+
+    .mx_ClarivaCallStarted_text {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .mx_ClarivaCallStarted_name {
+        overflow: hidden;
+        color: var(--cg-text);
+        font-family: var(--cg-font-ui);
+        font-size: var(--cg-fs-md);
+        font-weight: 600;
+        line-height: 1.3;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mx_ClarivaCallStarted_title {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--cpd-space-1x);
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        line-height: 1.35;
+    }
+
+    .mx_ClarivaCallStarted_icon {
+        flex: 0 0 auto;
+        fill: currentColor;
+        color: var(--cg-text-3);
+    }
+
+    .mx_ClarivaCallStarted_time {
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    /* history: the same tile, a step quieter (the name is still the primary text) */
+    &.mx_ClarivaCallStarted_history .mx_ClarivaCallStarted_name {
+        color: var(--cg-text-2);
+        font-weight: 500;
+    }
+
+    /* live: the newest tile of a running call */
+    &.mx_ClarivaCallStarted_live {
+        &::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            box-shadow: inset 0 0 0 1px var(--cg-teal);
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cg-teal) 55%, transparent);
+            pointer-events: none;
+        }
+
+        .mx_ClarivaCallStarted_icon {
+            color: var(--cg-teal-text);
+        }
+    }
+
+    button.mx_ClarivaCallStarted_join {
+        @mixin clariva-call-pill-teal;
+
+        flex: 0 0 auto;
+        padding-inline: var(--cpd-space-4x) var(--cpd-space-5x);
+    }
+}
+
+/* Room-list summary of a call in progress: Element only has a camera icon ("Video"); a voice call gets a phone. */
+.mx_LiveContentSummary .mx_LiveContentSummary_text.mx_LiveContentSummary_text_voice::before {
+    mask-image: url("@vector-im/compound-design-tokens/icons/voice-call.svg");
+}
+
+/* ── the call view: the frame around the Element Call widget (iframe untouched) ──────────────────────────────────── */
+
+/*
+ * .mx_CallView is the PLACEHOLDER: the widget iframe lives in #mx_PersistedElement_container and is positioned over
+ * .mx_AppTile_persistedWrapper, so rounding .mx_CallView would not clip it. The frame is therefore made of three parts that
+ * share one rect: the placeholder (22px radius and --cg-e3 shadow, painted under the iframe), the iframe's own body
+ * (.mx_AppTileBody--call: radius + overflow clip, stock has radius 0) and a 1px specular edge laid OVER it by ::after.
+ * Spacing comes from the placeholder's padding. Nothing blurred overlaps the widget (rule 6).
+ */
+:root[data-clariva] .mx_CallView {
+    gap: var(--cpd-space-2x);
+    box-sizing: border-box;
+    padding: var(--cpd-space-2x) var(--cpd-space-2x) calc(var(--cpd-space-2x) + env(safe-area-inset-bottom, 0px));
+    background-color: transparent;
+
+    .mx_AppTile {
+        flex: 1 1 0;
+        min-height: 0;
+        height: auto;
+        border-radius: var(--cg-r-lg);
+        box-shadow: var(--cg-e3);
+    }
+}
+
+@media (min-width: 769px) {
+    :root[data-clariva] .mx_CallView {
+        padding: var(--cpd-space-3x) var(--cpd-space-4x) var(--cpd-space-4x);
+    }
+}
+
+/*
+ * While a call is on screen the room header is in the flow (the floating header of _chatroom.pcss belongs to the
+ * timeline split only), so the call view hangs under it like the timeline does. The floating header is flush with the pane
+ * (it has no inset), and nothing sets --clariva-room-top / --clariva-room-side, so both resolve to 0 and the two headers
+ * match today; they are hooks for the in-flow one only.
+ */
+:root[data-clariva] .mx_RoomView_body.mx_MainSplit_call > .mx_RoomHeader {
+    margin: var(--clariva-room-top, 0) var(--clariva-room-side, 0) 0;
+}
+
+:root[data-clariva] .mx_AppTileBody.mx_AppTileBody--call.mx_AppTileBody--large {
+    position: relative;
+    border-radius: var(--cg-r-lg);
+
+    &::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        box-shadow: var(--cg-edge);
+        pointer-events: none;
+    }
+}
+
+/* the title strip (ClarivaCallViewTitle): glass-thin ABOVE the widget, never over it */
+:root[data-clariva] .mx_ClarivaCallViewTitle {
+    @mixin cg-glass-thin;
+
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--cpd-space-3x);
+    box-sizing: border-box;
+    min-height: var(--clariva-tap, 44px);
+    padding: var(--cpd-space-2x) var(--cpd-space-4x) var(--cpd-space-2x) var(--cpd-space-2x);
+    border-radius: var(--cg-r-md);
+    color: var(--cg-text);
+
+    .mx_ClarivaCallViewTitle_name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        font-family: var(--cg-font-ui);
+        font-size: var(--cg-fs-md);
+        font-weight: 600;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mx_ClarivaCallViewTitle_media {
+        @mixin cg-inset;
+
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: var(--cpd-space-1x);
+        padding: var(--cpd-space-1x) var(--cpd-space-3x);
+        border-radius: var(--cg-r-pill);
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-xs);
+        font-weight: 600;
+        line-height: 1.3;
+
+        svg {
+            fill: currentColor;
+            color: var(--cg-teal-text);
+        }
+    }
+}
+
+/* ── minimised call (the picture-in-picture card) ─────────────────────────────────────────────────────────────── */
+
+/*
+ * A 16px card: the placeholder carries the shadow, the widget body the radius, the overlay the specular edge and a quiet
+ * top scrim. The controls are ALWAYS visible (stock shows them on hover only, and a phone has no hover): a restore pill
+ * with the room's name on the start side, a 44px coral hang-up on the end side. They sit over the call video, so they are
+ * solid chips, never blurred (rule 6). The peer avatar and the mute state are not drawn here: the widget shows its own
+ * avatar tile, and the host has no live mute state to read.
+ */
+:root[data-clariva] .mx_WidgetPip {
+    border-radius: var(--cg-r-md);
+    box-shadow: var(--cg-e3);
+}
+
+:root[data-clariva] .mx_AppTileBody.mx_AppTileBody--call.mx_AppTileBody--mini {
+    border-radius: var(--cg-r-md);
+}
+
+:root[data-clariva] .mx_WidgetPip_overlay {
+    border-radius: var(--cg-r-md);
+    box-shadow: var(--cg-edge);
+
+    &::before {
+        content: "";
+        position: absolute;
+        inset: 0 0 auto;
+        block-size: 64px;
+        background: linear-gradient(rgba(11, 31, 58, 0.6), rgba(11, 31, 58, 0));
+        pointer-events: none;
+    }
+
+    .mx_WidgetPip_header,
+    .mx_WidgetPip_footer {
+        position: absolute;
+        top: 0;
+        box-sizing: border-box;
+        block-size: auto;
+        padding: var(--cpd-space-2x);
+        background: none;
+        opacity: 1;
+    }
+
+    .mx_WidgetPip_header {
+        inset-inline: 0 calc(var(--clariva-tap, 44px) + var(--cpd-space-4x));
+        inline-size: auto;
+        padding-inline-end: 0;
+    }
+
+    .mx_WidgetPip_footer {
+        inset-inline: auto 0;
+        inline-size: auto;
+        justify-content: flex-end;
+        align-items: flex-start;
+    }
+
+    /* restore: icon + the room's name, clipped with an ellipsis */
+    .mx_WidgetPip_backButton {
+        @mixin cg-press;
+
+        --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out);
+
+        display: block;
+        box-sizing: border-box;
+        block-size: var(--clariva-tap, 44px);
+        max-inline-size: 100%;
+        padding-inline: var(--cpd-space-3x) var(--cpd-space-4x);
+        overflow: hidden;
+        border-radius: var(--cg-r-pill);
+        background-color: rgba(11, 31, 58, 0.72);
+        color: var(--cg-on-teal-deep);
+        font-size: var(--cg-fs-sm);
+        font-weight: 600;
+        line-height: var(--clariva-tap, 44px);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+
+        > .mx_Icon {
+            margin-inline-end: var(--cpd-space-2x);
+            color: inherit;
+            vertical-align: middle;
+        }
+    }
+
+    /* close: a 44px coral disc, the hang-up glyph in white */
+    .mx_WidgetPip_footer .mx_AccessibleButton {
+        @mixin cg-press;
+
+        --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out);
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        inline-size: var(--clariva-tap, 44px);
+        block-size: var(--clariva-tap, 44px);
+        border-radius: 50%;
+        background-color: var(--cg-coral);
+        color: var(--cg-on-coral);
+
+        .mx_Icon {
+            color: inherit;
+        }
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .mx_WidgetPip_backButton:hover {
+            background-color: rgba(11, 31, 58, 0.86);
+        }
+
+        .mx_WidgetPip_footer .mx_AccessibleButton:hover {
+            background-color: color-mix(in srgb, var(--cg-coral) 86%, black);
+        }
+    }
+
+    /* over a video no theme colour is guaranteed: a white ring with a dark halo is visible on anything */
+    .mx_WidgetPip_backButton:focus-visible,
+    .mx_WidgetPip_footer .mx_AccessibleButton:focus-visible {
+        outline: 2px solid #ffffff;
+        outline-offset: 2px;
+        box-shadow: 0 0 0 5px rgba(11, 31, 58, 0.85);
+    }
+}
+
+/* ── forced colours: fills are replaced, so a pill needs a border; hover / focus stay visible without a fill ──────── */
+
+@media (forced-colors: active) {
+    /* [data-clariva] twice: the pills set `border: 0` at (0,4,x), this must out-rank it */
+    :root[data-clariva][data-clariva]
+        :is(
+            .mx_ClarivaIncomingCall_button,
+            button.mx_ClarivaCallStarted_join,
+            button.mx_ClarivaCallControl_join,
+            .mx_WidgetPip_backButton,
+            .mx_WidgetPip_footer .mx_AccessibleButton
+        ) {
+        border: 2px solid ButtonText;
+        background-color: ButtonFace;
+        box-shadow: none;
+        color: ButtonText;
+
+        &:hover,
+        &:active {
+            border-color: Highlight;
+            background-color: ButtonFace;
+        }
+
+        &:focus-visible {
+            outline: 2px solid Highlight;
+            outline-offset: 2px;
+        }
+    }
+}
+
+/* ── motion: the ring loop stops (the halos stay); everything else is the token layer ──────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    :root[data-clariva] .mx_ClarivaIncomingCall .mx_ClarivaIncomingCall_ring {
+        animation: none;
+    }
+}

@@ -12,12 +12,14 @@ const CopyWebpackPlugin = require("copy-webpack-plugin");
 
 // Environment variables
 // RIOT_OG_IMAGE_URL: specifies the URL to the image which should be used for the opengraph logo.
+//   CLARIVA: must be an absolute URL. Defaults to the marketing site's social card; set it to
+//   https://<web-origin>/themes/clariva/img/logos/opengraph.png (1200x630, shipped in res/) once the web origin is final.
 // CSP_EXTRA_SOURCE: specifies a URL which should be appended to each CSP directive which uses 'self',
 //   this can be helpful if your deployment has redirects for old bundles, such as develop.element.io.
 
 dotenv.config();
 let ogImageUrl = process.env.RIOT_OG_IMAGE_URL;
-if (!ogImageUrl) ogImageUrl = "https://app.element.io/themes/element/img/logos/opengraph.png";
+if (!ogImageUrl) ogImageUrl = "https://clarivahub.com/social-og-1200.png"; // CLARIVA: was app.element.io
 
 if (!process.env.VERSION) {
     console.warn("Unset VERSION variable - this may affect build output");
@@ -702,7 +704,16 @@ module.exports = (env, argv) => {
             }),
 
             new HtmlWebpackInjectPreload({
-                files: [{ match: /.*Inter.*\.woff2$/ }],
+                files: [
+                    { match: /.*Inter.*\.woff2$/ },
+                    // CLARIVA: the Fraunces display face (res/fonts/clariva, see _fonts.pcss) is on the first paint
+                    // of the sign-in page and the chat list. A font preload only counts when it is `as="font"` with
+                    // `crossorigin` (fonts are fetched in CORS mode); without both the browser downloads it twice.
+                    {
+                        match: /.*Fraunces.*\.woff2$/,
+                        attributes: { as: "font", type: "font/woff2", crossorigin: true },
+                    },
+                ],
             }),
 
             // Upload to sentry if sentry env is present
@@ -730,10 +741,27 @@ module.exports = (env, argv) => {
                     "res/jitsi_external_api.min.js.LICENSE.txt",
                     "res/manifest.json",
                     "res/welcome.html",
+                    "res/home.html", // CLARIVA: custom home page (config embedded_pages.home_url)
                     { from: "welcome/**", context: path.resolve(__dirname, "res") },
-                    { from: "themes/**", context: path.resolve(__dirname, "res") },
+                    {
+                        from: "themes/**",
+                        context: path.resolve(__dirname, "res"),
+                        // CLARIVA: res/themes/element/ is the stock Element artwork (logos, lake photo); it is kept in the
+                        // source tree only as the upstream baseline and must not be deployed. Safe to delete from the repo.
+                        globOptions: { ignore: ["**/themes/element/**"] },
+                    },
                     { from: "vector-icons/**", context: path.resolve(__dirname, "res") },
                     { from: "decoder-ring/**", context: path.resolve(__dirname, "res") },
+                    // CLARIVA: Element Call 0.16.3 static build (same artefact the Android app bundles), served at /element-call/.
+                    // `info.minimized` makes terser-webpack-plugin and css-minimizer-webpack-plugin skip these assets: the build
+                    // is already minified, and re-minifying it would make webapp/element-call differ from the exact bytes
+                    // Android ships (the call interop was verified against those).
+                    {
+                        from: "element-call/**",
+                        context: path.resolve(__dirname, "res"),
+                        noErrorOnMissing: true,
+                        info: { minimized: true },
+                    },
                     { from: "media/**", context: path.resolve(__dirname, "node_modules/matrix-react-sdk/res/") },
                     { from: "config.json", noErrorOnMissing: true },
                     "contribute.json",
@@ -791,6 +819,22 @@ module.exports = (env, argv) => {
 
             // Disable host check
             allowedHosts: "all",
+
+            // CLARIVA: same redirect as nginx/conf.d/default.conf. The QR / share link of the Android app is
+            // https://<web-origin>/u/<percent-encoded mxid>; the app itself is hash-routed, so it has to become
+            // /#/user/<mxid>. Built from the RAW url (originalUrl) with a restricted character set, never from decoded input.
+            setupMiddlewares: (middlewares) => {
+                middlewares.unshift({
+                    name: "clariva-user-link",
+                    path: "/u",
+                    middleware: (req, res, next) => {
+                        const match = /^\/u\/([A-Za-z0-9%._~:@=+/-]+)/.exec(req.originalUrl);
+                        if (!match) return next();
+                        res.redirect(302, `/#/user/${match[1]}`);
+                    },
+                });
+                return middlewares;
+            },
         },
     };
 };

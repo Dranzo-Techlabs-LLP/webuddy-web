@@ -1,0 +1,125 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Clariva display face: Fraunces (SIL OFL 1.1, res/fonts/clariva/OFL-Fraunces.txt), a variable font with the opsz, wght
+ * and SOFT axes, self-hosted and cut down to the Latin subset (one woff2, 117.96 KiB). Used for the FEW big moments only
+ * (screen titles, wallet balance, Home greeting, call-ring caller name, sign-in headline, empty-state titles), never for
+ * body text, buttons, labels or list rows: that is --cg-font-ui (Inter, the stack Element already ships).
+ *
+ * Loading: font-display swap (a local fallback shows first, Fraunces swaps in; no invisible text), unicode-range so a page
+ * with no Latin text never renders with it. The file is emitted by webpack's file-loader rule for woff2
+ * (res/fonts/clariva -> fonts/clariva/Fraunces-VF-latin.<hash>.woff2), preloaded from the page head by
+ * HtmlWebpackInjectPreload (webpack.config.js, a Clariva edit: the sign-in headline and the chat-list title are on the
+ * first paint) and the page CSP already allows font-src 'self' data:.
+ *
+ * Swap shift. Until Fraunces arrives the headline is drawn in "Fraunces Fallback": the user's local Georgia, scaled and
+ * line-boxed to Fraunces' metrics so the swap does not reflow the page. Measured from the shipped file (hhea: unitsPerEm
+ * 2000, ascent 1956, descent 510, lineGap 0; advances from hmtx + HVAR at wght 560, SOFT 100) against Georgia (unitsPerEm
+ * 2048, ascent 1878, descent 449, lineGap 0): the average advance of display text (greeting, balance, tab labels) is
+ * 107.5 % of Georgia's at opsz 28, 106.7 % at 36 and 105.5 % at 48, so size-adjust is 107 %. The overrides are Fraunces' own
+ * metrics divided by size-adjust (ascent 0.978 / 1.07 = 91.4 %, descent 0.255 / 1.07 = 23.8 %, line gap 0), because the UA
+ * applies size-adjust on top of them. APPROXIMATE by construction: one glyph set cannot match a variable font at every
+ * weight and size, and only Georgia is matched (Linux and Android have none: they fall through to `serif` and keep some
+ * shift). The face covers weights 300-700 so a bold request never synthesises a wider, mismatched bold.
+ *
+ * Optical size: the browser sets `opsz` from the font size when `font-optical-sizing` is auto (the default). The brief's
+ * `"opsz" auto` is not valid inside font-variation-settings, so do NOT write it; only the SOFT axis is set by hand.
+ * Italic is not shipped (the italic file doubles the weight); nothing in the design uses it.
+ *
+ * Numerals. The Latin subset has NO tnum / lnum / pnum feature (its GSUB lists only liga and rvrn), so
+ * font-variant-numeric does nothing in Fraunces: its figures are PROPORTIONAL. That is fine for a hero balance (large,
+ * nothing sits to its right: use cg-display alone). Any column or list of amounts (history rows, rate chips, the coin chip)
+ * must use cg-numerals, which switches to the UI face (Inter has tnum) with tabular lining figures so the digits align.
+ * Do not put cg-display and cg-numerals on one element: whichever comes last wins the font-family.
+ */
+
+@font-face {
+    font-family: Fraunces;
+    font-style: normal;
+    font-weight: 300 700;
+    font-display: swap;
+    src: url("$(res)/fonts/clariva/Fraunces-VF-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+        U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* the metrics-matched stand-in used while Fraunces loads (see "Swap shift" above) */
+@font-face {
+    font-family: "Fraunces Fallback";
+    font-style: normal;
+    font-weight: 300 700;
+    src: local("Georgia");
+    size-adjust: 107%;
+    ascent-override: 91.4%;
+    descent-override: 23.8%;
+    line-gap-override: 0%;
+}
+
+:root[data-clariva] {
+    --cg-font-display: "Fraunces", "Fraunces Fallback", georgia, serif;
+    --cg-font-ui: $font-family;
+    --cg-display-weight: 560;
+    --cg-display-soft: 100;
+    --cg-display-tracking: -0.02em; /* cg-display only: sizes >= 28px. Below that use cg-display-sm (tracking 0) */
+}
+
+/*
+ * Display recipe: weight 560, SOFT 100 (rounded terminals, the "water drop" voice), tight leading and tracking.
+ * Apply to headings and big numerals only, at 28px (--cg-fs-2xl) and up: the -0.02em tracking is tuned for large sizes and
+ * makes smaller display text cramped. Below 28px use cg-display-sm. Figures in Fraunces are proportional: for a column of
+ * amounts use cg-numerals (Inter, tabular), not this; a hero balance is fine in cg-display.
+ */
+@define-mixin cg-display {
+    font-family: var(--cg-font-display);
+    font-optical-sizing: auto;
+    font-variation-settings: "SOFT" var(--cg-display-soft);
+    font-weight: var(--cg-display-weight);
+    letter-spacing: var(--cg-display-tracking);
+    line-height: 1.1;
+}
+
+/* The same face and weight with NO negative tracking: display text under 28px (a 20px dialog title, a 22px caller name). */
+@define-mixin cg-display-sm {
+    font-family: var(--cg-font-display);
+    font-optical-sizing: auto;
+    font-variation-settings: "SOFT" var(--cg-display-soft);
+    font-weight: var(--cg-display-weight);
+    letter-spacing: 0;
+    line-height: 1.15;
+}
+
+/*
+ * Money in a column or list: the UI face (Inter) with tabular lining figures, so the digits of one row sit under the
+ * digits of the next. NOT Fraunces: its subset has no tnum / lnum / pnum (see "Numerals" above), so this mixin switches the
+ * family. Set the weight and size on the surface.
+ */
+@define-mixin cg-numerals {
+    font-family: var(--cg-font-ui);
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+.cg-display {
+    @mixin cg-display;
+}
+
+.cg-display-sm {
+    @mixin cg-display-sm;
+}
+
+.cg-numerals {
+    @mixin cg-numerals;
+}

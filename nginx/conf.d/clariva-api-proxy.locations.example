@@ -1,0 +1,35 @@
+# Same-origin reverse proxy for the Clariva Wallet-API (alternative to enabling CORS on the API).
+#
+# To enable:
+#   1. copy this file to  nginx/conf.d/clariva-api-proxy.locations  (the Dockerfile copies the whole conf.d folder;
+#      or bind-mount the file into /etc/nginx/conf.d/ at run time),
+#   2. set  "clariva": { "api_base_url": "/clariva-api" }  in the config.json that is served (docs/clariva/DEPLOY.md),
+#   3. adjust the upstream host below if it is not the production API.
+#
+# The browser then only talks to its own origin, so the Wallet-API needs no CORS_ORIGINS entry for the web app and the
+# page CSP stays trivially satisfied. default.conf includes every conf.d/clariva-*.locations file inside its server block.
+
+location /clariva-api/ {
+    # The upstream name is resolved at request time (variable in proxy_pass), so nginx still starts when DNS is down.
+    # Inside Docker use the embedded resolver 127.0.0.11, in Kubernetes the cluster DNS service.
+    resolver 1.1.1.1 8.8.8.8 valid=300s ipv6=off;
+    set $clariva_api_upstream https://wallet.dranzo.com;
+
+    # strip the /clariva-api prefix; the query string is preserved
+    rewrite ^/clariva-api/(.*)$ /$1 break;
+    proxy_pass $clariva_api_upstream;
+
+    proxy_ssl_server_name on;
+    proxy_http_version 1.1;
+    proxy_set_header Host wallet.dranzo.com;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 30s;
+    proxy_send_timeout 30s;
+    client_max_body_size 1m;
+
+    # API responses are per-user and must never be cached by the browser or an intermediate cache.
+    # (A location-level add_header replaces the server-level headers, so repeat the ones that matter.)
+    add_header Cache-Control "no-store" always;
+    add_header X-Content-Type-Options "nosniff" always;
+}

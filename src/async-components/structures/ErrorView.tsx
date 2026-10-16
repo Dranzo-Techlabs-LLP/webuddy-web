@@ -1,17 +1,8 @@
 /*
-Copyright 2020 New Vector Ltd
+Copyright 2020-2024 New Vector Ltd.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only
+Please see LICENSE in the repository root for full details.
 */
 
 import React, { ReactNode } from "react";
@@ -21,9 +12,9 @@ import { Flex } from "matrix-react-sdk/src/components/utils/Flex";
 import PopOutIcon from "@vector-im/compound-design-tokens/assets/web/icons/pop-out";
 
 import { _t } from "../../languageHandler";
-import { Icon as AppleIcon } from "../../../res/themes/element/img/compound/apple.svg";
-import { Icon as MicrosoftIcon } from "../../../res/themes/element/img/compound/microsoft.svg";
-import { Icon as LinuxIcon } from "../../../res/themes/element/img/compound/linux.svg";
+import { Icon as AppleIcon } from "../../../res/themes/clariva/img/compound/apple.svg";
+import { Icon as MicrosoftIcon } from "../../../res/themes/clariva/img/compound/microsoft.svg";
+import { Icon as LinuxIcon } from "../../../res/themes/clariva/img/compound/linux.svg";
 
 // directly import the style here as this layer does not support rethemedex at this time so no matrix-react-sdk
 // PostCSS variables will be accessible.
@@ -42,8 +33,8 @@ export const ErrorView: React.FC<IProps> = ({ title, messages, footer, children 
             <img
                 className="mx_ErrorView_logo"
                 height="160"
-                src="themes/element/img/logos/element-app-logo.png"
-                alt="Element"
+                src="themes/clariva/img/logos/clariva-app-logo.png"
+                alt="Clariva"
             />
             <div className="mx_ErrorView_container">
                 <Heading size="md" weight="semibold">
@@ -69,17 +60,17 @@ const MobileAppLinks: React.FC<{
     <Flex gap="var(--cpd-space-6x)">
         {appleAppStoreUrl && (
             <a href={appleAppStoreUrl} target="_blank" rel="noreferrer noopener">
-                <img height="64" src="themes/element/img/download/apple.svg" alt="Apple App Store" />
+                <img height="64" src="themes/clariva/img/download/apple.svg" alt="Apple App Store" />
             </a>
         )}
         {googlePlayUrl && (
             <a href={googlePlayUrl} target="_blank" rel="noreferrer noopener" key="android">
-                <img height="64" src="themes/element/img/download/google.svg" alt="Google Play Store" />
+                <img height="64" src="themes/clariva/img/download/google.svg" alt="Google Play Store" />
             </a>
         )}
         {fdroidUrl && (
             <a href={fdroidUrl} target="_blank" rel="noreferrer noopener" key="fdroid">
-                <img height="64" src="themes/element/img/download/fdroid.svg" alt="F-Droid" />
+                <img height="64" src="themes/clariva/img/download/fdroid.svg" alt="F-Droid" />
             </a>
         )}
     </Flex>
@@ -129,7 +120,7 @@ export const UnsupportedBrowserView: React.FC<{
     onAccept?(): void;
 }> = ({ onAccept }) => {
     const config = SdkConfig.get();
-    const brand = config.brand ?? "Element";
+    const brand = config.brand ?? "Clariva"; // CLARIVA: was "Element"
 
     const hasDesktopBuilds =
         config.desktop_builds?.available &&

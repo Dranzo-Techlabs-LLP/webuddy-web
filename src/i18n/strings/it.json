@@ -16,10 +16,8 @@
         "cannot_load_config": "Impossibile caricare il file di configurazione: ricarica la pagina per riprovare.",
         "invalid_configuration_mixed_server": "Configurazione non valida: default_hs_url non può essere specificato assieme a default_server_name o default_server_config",
         "invalid_configuration_no_server": "Configurazione non valida: nessun server predefinito specificato.",
-        "invalid_json": "La configurazione del tuo elemento contiene un JSON non valido. Correggi il problema e ricarica la pagina.",
         "invalid_json_detail": "Il messaggio dal parser è: %(message)s",
-        "invalid_json_generic": "JSON non valido",
-        "misconfigured": "Il tuo elemento è configurato male"
+        "invalid_json_generic": "JSON non valido"
     },
     "incompatible_browser": {
         "title": "Browser non supportato"
@@ -27,6 +25,5 @@
     "powered_by_matrix": "Offerto da Matrix",
     "powered_by_matrix_with_logo": "Chat e collaborazioni criptate e decentralizzate offerte da $matrixLogo",
     "unknown_device": "Dispositivo sconosciuto",
-    "web_default_device_name": "%(appName)s: %(browserName)s su %(osName)s",
-    "welcome_to_element": "Benvenuti su Element"
+    "web_default_device_name": "%(appName)s: %(browserName)s su %(osName)s"
 }

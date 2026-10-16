@@ -1,0 +1,1191 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Clariva wallet, "Clear Water" glass edition (src/clariva/components/wallet; docs/clariva/DESIGN-SYSTEM.md section 6).
+ *
+ * Everything on this page lives INSIDE the settings dialog or the recharge dialog, i.e. on one thick-glass panel, so (rule 1)
+ * nothing here blurs: the balance "lens", the history list, the amount chips and the billing sections are inset tiles with a
+ * specular edge. Money is the only amber on screen: a credit amount is --cg-amber-text, a debit is --cg-text, and BOTH carry
+ * a + / - sign (never colour alone). Columns of amounts use cg-numerals (Fraunces has no tabular figures); only the hero
+ * balance is in the display face. The success state is the one allowed delight and plays once.
+ *
+ * The shared pieces (pills, fields, error glyph) are the mixins at the top of _dialogs.pcss; reduced motion / transparency /
+ * contrast come from the token layer and the blanket in _a11y.pcss.
+ */
+
+/* ───────────────────────────── balance chip (left panel header) ───────────────────────────── */
+
+.mx_ClarivaWalletBar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    padding: var(--cpd-space-3x) var(--cpd-space-3x) 0;
+}
+
+/* an inset pill on the list pane's glass (the coin chip of the list header is the shell's; this stays a plain button) */
+.mx_ClarivaWalletChip {
+    @mixin cg-inset;
+    @mixin cg-press;
+    @mixin cg-numerals;
+
+    --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out);
+
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cpd-space-2x);
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    min-height: var(--clariva-tap);
+    margin: 0;
+    padding: var(--cpd-space-1-5x) var(--cpd-space-4x);
+    border: 0;
+    border-radius: var(--cg-r-pill);
+    color: var(--cg-text);
+    font-size: var(--cg-fs-md);
+    font-weight: 600;
+    line-height: 1.25;
+    cursor: pointer;
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover {
+            background-image: linear-gradient(var(--cg-hover-tint), var(--cg-hover-tint));
+        }
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+
+    .mx_ClarivaWalletChip_icon {
+        flex-shrink: 0;
+        width: 20px;
+        height: 20px;
+        color: var(--cg-text-2);
+    }
+
+    .mx_ClarivaWalletChip_text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* the left panel is collapsed to icons: a round icon button */
+    &.mx_ClarivaWalletChip_minimized {
+        width: var(--clariva-tap);
+        height: var(--clariva-tap);
+        padding: 0;
+        justify-content: center;
+    }
+}
+
+.mx_UserMenu_contextMenu .mx_UserMenu_iconWallet::before {
+    mask-image: url("$(res)/img/clariva/wallet.svg");
+}
+
+.mx_ClarivaVisuallyHidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ───────────────────────────── shared pieces ───────────────────────────── */
+
+/* button row of the wallet dialogs: [secondary][primary], primary on the right; a full-width column (primary on top) on phones */
+.mx_ClarivaDialog_buttons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--cpd-space-3x);
+    margin-top: var(--cpd-space-6x);
+
+    button {
+        touch-action: manipulation;
+    }
+}
+
+@media (max-width: 600px) {
+    .mx_ClarivaDialog_buttons {
+        flex-direction: column-reverse;
+        align-items: stretch;
+        margin-top: var(--cpd-space-5x);
+
+        button {
+            width: 100%;
+        }
+    }
+}
+
+/* ───────────────────────────── Wallet settings tab: the balance lens ───────────────────────────── */
+
+/*
+ * The wallet card. On the Home pane the same family is real thick glass; here it sits on the settings dialog's glass, so it
+ * is a "lens" without a blur: an inset tile with the specular edge, a teal wash from the top-left and an amber breath from
+ * the bottom-right (the coin's colour, decorative only: the words sit on the quiet middle).
+ */
+.mx_ClarivaWallet_balance {
+    @mixin cg-inset;
+
+    --cg-lens-teal: rgba(0, 184, 160, 0.16);
+    --cg-lens-amber: rgba(245, 181, 68, 0.2);
+
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--cpd-space-4x);
+    padding: var(--cpd-space-6x);
+    margin-bottom: var(--cpd-space-6x);
+    border-radius: var(--cg-r-lg);
+    background-image: radial-gradient(70% 120% at 0% 0%, var(--cg-lens-teal), transparent 70%),
+        radial-gradient(50% 90% at 100% 100%, var(--cg-lens-amber), transparent 70%);
+    box-shadow: var(--cg-edge), var(--cg-e2);
+
+    /* the coin, in an amber-wash tile */
+    .mx_ClarivaWallet_balanceIcon {
+        display: grid;
+        place-items: center;
+        width: 64px;
+        height: 64px;
+        border-radius: var(--cg-r-md);
+        background: var(--cg-amber-wash);
+        box-shadow: inset 0 0 0 1px var(--cg-line);
+    }
+
+    .mx_ClarivaWallet_balanceText {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cpd-space-0-5x);
+        min-width: 0;
+    }
+
+    .mx_ClarivaWallet_balanceLabel {
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        font-weight: 600;
+        line-height: 1.3;
+        letter-spacing: 0.01em;
+    }
+
+    /* the hero balance: the display face (28px and up; its figures are proportional, fine for one number) */
+    .mx_ClarivaWallet_balanceValue {
+        @mixin cg-display;
+
+        color: var(--cg-text);
+        font-size: clamp(2rem, 9vw, var(--cg-fs-4xl));
+        overflow-wrap: anywhere;
+    }
+
+    /* until the first balance arrives: a quiet line in the UI face, never a 48px "Loading..." */
+    .mx_ClarivaWallet_balanceValue_pending {
+        color: var(--cg-text-2);
+        font-family: var(--cg-font-ui);
+        font-size: var(--cg-fs-xl);
+        font-variation-settings: normal;
+        font-weight: 600;
+        letter-spacing: 0;
+        line-height: 1.3;
+    }
+
+    .mx_ClarivaWallet_balanceHint {
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        line-height: 1.4;
+    }
+
+    .mx_ClarivaWallet_unavailable {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--cpd-space-3x);
+        color: var(--cg-coral-text);
+        font-family: var(--cg-font-ui);
+        font-size: var(--cg-fs-lg);
+        font-weight: 600;
+        letter-spacing: 0;
+    }
+
+    /* the one primary action of the screen (the pill is the Compound primary under .mx_Dialog, see _dialogs.pcss) */
+    .mx_ClarivaWallet_recharge {
+        grid-column: 1 / -1;
+        justify-self: stretch;
+        touch-action: manipulation;
+    }
+
+    .mx_ClarivaWallet_unavailable button {
+        min-block-size: var(--clariva-tap);
+    }
+}
+
+body[class*="cpd-theme-dark"] .mx_ClarivaWallet_balance {
+    --cg-lens-teal: rgba(47, 217, 193, 0.14);
+    --cg-lens-amber: rgba(245, 181, 68, 0.14);
+}
+
+@media (min-width: 601px) {
+    .mx_ClarivaWallet_balance .mx_ClarivaWallet_recharge {
+        justify-self: start;
+        min-width: 220px;
+    }
+}
+
+/* "Your earlier payment ... was confirmed": a teal-railed inset line */
+.mx_ClarivaWallet_notice {
+    @mixin cg-inset;
+
+    margin: calc(-1 * var(--cpd-space-2x)) 0 var(--cpd-space-6x);
+    padding: var(--cpd-space-3x) var(--cpd-space-4x);
+    border-radius: var(--cg-r-md);
+    box-shadow:
+        var(--cg-edge-flat),
+        inset 3px 0 0 var(--cg-teal);
+    color: var(--cg-text);
+    font-size: var(--cg-fs-md);
+    font-weight: 500;
+}
+
+/* ───────────────────────────── transaction history ───────────────────────────── */
+
+.mx_ClarivaTxns {
+    width: 100%;
+
+    /* one inset container; each row is a 16px-radius tile inside it (22px outer - 6px padding) */
+    .mx_ClarivaTxns_list {
+        @mixin cg-inset;
+
+        margin: 0;
+        padding: var(--cpd-space-1-5x);
+        list-style: none;
+        overflow: hidden;
+        border-radius: var(--cg-r-lg);
+    }
+
+    .mx_ClarivaTxns_item + .mx_ClarivaTxns_item {
+        border-top: 1px solid var(--cg-line);
+    }
+
+    /* a row: [icon tile] [label / date] [signed amount / status]. A <button>, so reset it fully. */
+    .mx_ClarivaTxn {
+        appearance: none;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: var(--cpd-space-3x);
+        width: 100%;
+        min-height: 64px;
+        margin: 0;
+        padding: var(--cpd-space-3x) var(--cpd-space-3x);
+        border: 0;
+        border-radius: var(--cg-r-md);
+        background: transparent;
+        color: var(--cg-text);
+        font-family: var(--cg-font-ui);
+        font-size: var(--cg-fs-md);
+        text-align: start;
+        cursor: pointer;
+        touch-action: manipulation;
+        transition: background-color var(--cg-dur-hover) var(--cg-ease-out);
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover {
+                background: var(--cg-hover-tint);
+            }
+        }
+
+        &:active {
+            background: var(--cg-press-tint);
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--cg-focus);
+            outline-offset: -2px;
+        }
+
+        &.mx_ClarivaTxn_placeholder {
+            cursor: default;
+            pointer-events: none;
+        }
+    }
+
+    /* the icon tile: a credit is an amber-wash tile with an amber-text glyph, a debit a quiet tile with a text-2 glyph */
+    .mx_ClarivaTxn_icon {
+        position: relative; /* contains the visually hidden "Credit"/"Debit" text */
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border-radius: var(--cg-r-sm);
+
+        svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        &.mx_ClarivaTxn_credit {
+            background: var(--cg-amber-wash);
+            color: var(--cg-amber-text);
+        }
+
+        &.mx_ClarivaTxn_debit {
+            background: var(--cg-hover-tint);
+            color: var(--cg-text-2);
+        }
+    }
+
+    .mx_ClarivaTxn_main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: var(--cpd-space-0-5x);
+        min-width: 0;
+    }
+
+    .mx_ClarivaTxn_label {
+        color: var(--cg-text);
+        font-size: var(--cg-fs-md);
+        font-weight: 600;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+    }
+
+    .mx_ClarivaTxn_hint {
+        display: block;
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        font-weight: 400;
+    }
+
+    .mx_ClarivaTxn_date {
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        line-height: 1.3;
+    }
+
+    .mx_ClarivaTxn_side {
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: var(--cpd-space-1x);
+        text-align: end;
+    }
+
+    /* right-aligned, signed, tabular so a column of amounts lines up: amber-text for a credit, text for a debit */
+    .mx_ClarivaTxn_amount {
+        @mixin cg-numerals;
+
+        font-size: var(--cg-fs-lg);
+        font-weight: 600;
+        line-height: 1.25;
+        white-space: nowrap;
+
+        &.mx_ClarivaTxn_amount_credit {
+            color: var(--cg-amber-text);
+        }
+
+        &.mx_ClarivaTxn_amount_debit {
+            color: var(--cg-text);
+        }
+    }
+
+    .mx_ClarivaTxn_sign {
+        margin-inline-end: 1px;
+    }
+
+    .mx_ClarivaTxns_loading {
+        position: relative; /* contains the visually hidden "Loading..." text */
+    }
+
+    /* loading skeleton: the Skeleton primitive (cg-skeleton + the shared pulse), laid out by these hooks */
+    .mx_ClarivaSkel {
+        display: block;
+
+        @mixin cg-pulse; /* the shared skeleton recipe (_motion.pcss): opacity pulse, 1.2s */
+    }
+
+    .mx_ClarivaSkel_icon {
+        flex: none;
+    }
+
+    /* empty state: an inline illustration, a display-face title, one line that invites the next step */
+    .mx_ClarivaTxns_empty {
+        @mixin cg-inset;
+
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--cpd-space-2x);
+        padding: var(--cpd-space-8x) var(--cpd-space-4x);
+        border-radius: var(--cg-r-lg);
+        text-align: center;
+    }
+
+    .mx_ClarivaTxns_emptyArt {
+        display: block;
+        width: 112px;
+        height: 88px;
+        margin-bottom: var(--cpd-space-1x);
+        color: var(--cg-text-3);
+
+        /* the coin leaning on the ledger: the amber face and the Ink Navy "C" of the CoinIcon primitive */
+        .mx_ClarivaTxns_emptyCoin {
+            fill: var(--cg-amber);
+            stroke: var(--cg-on-amber);
+            stroke-width: 2;
+        }
+
+        .mx_ClarivaTxns_emptyCoinMark {
+            fill: none;
+            stroke: var(--cg-on-amber);
+        }
+    }
+
+    .mx_ClarivaTxns_emptyTitle {
+        @mixin cg-display-sm;
+
+        margin: 0;
+        color: var(--cg-text);
+        font-size: var(--cg-fs-xl);
+    }
+
+    .mx_ClarivaTxns_emptyHint {
+        margin: 0;
+        max-width: 34ch;
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-md);
+        line-height: 1.45;
+    }
+
+    .mx_ClarivaTxns_status {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: var(--cpd-space-3x);
+        padding: var(--cpd-space-6x) var(--cpd-space-4x);
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-md);
+        text-align: center;
+
+        &.mx_ClarivaTxns_error {
+            color: var(--cg-coral-text);
+        }
+
+        button {
+            min-block-size: var(--clariva-tap);
+        }
+    }
+
+    /* "Load more": a full-width secondary pill */
+    .mx_ClarivaTxns_more {
+        margin-top: var(--cpd-space-4x);
+
+        button {
+            width: 100%;
+        }
+    }
+}
+
+/* status chip (list rows and the details dialog): icon + text + a wash, never colour alone */
+.mx_ClarivaTxn_status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cpd-space-1x);
+    padding: var(--cpd-space-0-5x) var(--cpd-space-2x) var(--cpd-space-0-5x) var(--cpd-space-1-5x);
+    border-radius: var(--cg-r-pill);
+    font-family: var(--cg-font-ui);
+    font-size: var(--cg-fs-xs);
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+
+    svg {
+        flex: none;
+        width: 14px;
+        height: 14px;
+    }
+}
+
+.mx_ClarivaTxn_status_success {
+    --cg-status-wash: rgba(0, 184, 160, 0.14);
+
+    background: var(--cg-status-wash);
+    color: var(--cg-teal-text);
+}
+
+.mx_ClarivaTxn_status_critical {
+    --cg-status-wash: rgba(215, 55, 63, 0.12);
+
+    background: var(--cg-status-wash);
+    color: var(--cg-coral-text);
+}
+
+.mx_ClarivaTxn_status_secondary {
+    background: var(--cg-hover-tint);
+    color: var(--cg-text-2);
+}
+
+body[class*="cpd-theme-dark"] .mx_ClarivaTxn_status_success {
+    --cg-status-wash: rgba(47, 217, 193, 0.14);
+}
+
+body[class*="cpd-theme-dark"] .mx_ClarivaTxn_status_critical {
+    --cg-status-wash: rgba(209, 60, 68, 0.2);
+}
+
+/* ───────────────────────────── transaction details dialog ───────────────────────────── */
+
+.mx_ClarivaTxnDetail {
+    width: 440px;
+    max-width: 100%;
+
+    .mx_ClarivaTxnDetail_hero {
+        display: flex;
+        align-items: center;
+        gap: var(--cpd-space-3x);
+        padding: var(--cpd-space-1x) 0 var(--cpd-space-4x);
+    }
+
+    .mx_ClarivaTxn_icon {
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 48px;
+        height: 48px;
+        border-radius: var(--cg-r-md);
+
+        svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        &.mx_ClarivaTxn_credit {
+            background: var(--cg-amber-wash);
+            color: var(--cg-amber-text);
+        }
+
+        &.mx_ClarivaTxn_debit {
+            background: var(--cg-hover-tint);
+            color: var(--cg-text-2);
+        }
+    }
+
+    .mx_ClarivaTxnDetail_heroText {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .mx_ClarivaTxnDetail_heroLabel {
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-md);
+    }
+
+    .mx_ClarivaTxnDetail_heroAmount {
+        @mixin cg-numerals;
+
+        font-size: var(--cg-fs-2xl);
+        font-weight: 600;
+        line-height: 1.15;
+        overflow-wrap: anywhere;
+
+        &.mx_ClarivaTxn_amount_credit {
+            color: var(--cg-amber-text);
+        }
+
+        &.mx_ClarivaTxn_amount_debit {
+            color: var(--cg-text);
+        }
+    }
+
+    /* the ledger fields: one inset section, a hairline between rows */
+    .mx_ClarivaTxnDetail_list {
+        @mixin cg-inset;
+
+        margin: 0;
+        padding: var(--cpd-space-1x) var(--cpd-space-4x);
+        border-radius: var(--cg-r-lg);
+    }
+
+    /* two columns (label | value) on a wide dialog, stacked on a phone */
+    .mx_ClarivaTxnDetail_row {
+        display: grid;
+        grid-template-columns: minmax(110px, 38%) minmax(0, 1fr);
+        gap: var(--cpd-space-1x) var(--cpd-space-4x);
+        align-items: center;
+        min-height: var(--clariva-tap);
+        padding: var(--cpd-space-2x) 0;
+
+        dt {
+            color: var(--cg-text-2);
+            font-size: var(--cg-fs-md);
+        }
+
+        dd {
+            display: flex;
+            justify-content: flex-end;
+            min-width: 0;
+            margin: 0;
+            color: var(--cg-text);
+            font-size: var(--cg-fs-md);
+            font-weight: 500;
+            overflow-wrap: anywhere;
+            text-align: end;
+        }
+
+        & + & {
+            border-top: 1px solid var(--cg-line);
+        }
+    }
+
+    .mx_ClarivaTxnDetail_code {
+        font-family: var(--cpd-font-family-mono);
+        font-size: var(--cg-fs-sm);
+        overflow-wrap: anywhere;
+    }
+
+    /* copy button: a 44px target (the stock one is 1em) */
+    .mx_CopyableText {
+        width: 100%;
+        max-width: 100%;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--cpd-space-2x);
+
+        .mx_CopyableText_copyButton {
+            position: static;
+            flex: none;
+            box-sizing: border-box;
+            display: grid;
+            place-items: center;
+            width: var(--clariva-tap);
+            height: var(--clariva-tap);
+            margin: calc(-1 * var(--cpd-space-2x)) calc(-1 * var(--cpd-space-3x)) calc(-1 * var(--cpd-space-2x)) 0;
+            padding: 0;
+            border-radius: 50%;
+            background: transparent;
+            touch-action: manipulation;
+
+            @media (hover: hover) and (pointer: fine) {
+                &:hover {
+                    background: var(--cg-hover-tint);
+                }
+            }
+
+            &:focus-visible {
+                outline: 2px solid var(--cg-focus);
+                outline-offset: -2px;
+            }
+
+            &::before {
+                width: 20px;
+                height: 20px;
+            }
+        }
+    }
+}
+
+@media (max-width: 600px) {
+    .mx_ClarivaTxnDetail .mx_ClarivaTxnDetail_row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+
+        dt {
+            font-size: var(--cg-fs-sm);
+        }
+
+        dd {
+            justify-content: flex-start;
+            text-align: start;
+        }
+    }
+}
+
+/* ───────────────────────────── recharge dialog ───────────────────────────── */
+
+.mx_ClarivaRechargeDialog {
+    width: 420px;
+    max-width: 100%;
+
+    .mx_ClarivaRecharge_form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cpd-space-4x);
+    }
+
+    .mx_ClarivaRecharge_lead {
+        margin: 0;
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-md);
+        line-height: 1.45;
+    }
+
+    /* the form's own 16px gap + 8px = 24px above the buttons */
+    .mx_ClarivaRecharge_form .mx_ClarivaDialog_buttons {
+        margin-top: var(--cpd-space-2x);
+    }
+
+    /* the amount: big, with a rupee prefix, in the UI face with tabular figures */
+    .mx_ClarivaAuth_inputRow {
+        min-height: 56px;
+    }
+
+    .mx_ClarivaAuth_prefix {
+        font-size: var(--cg-fs-xl);
+    }
+
+    .mx_ClarivaAuth_input {
+        @mixin cg-numerals;
+
+        font-size: var(--cg-fs-xl);
+        font-weight: 600;
+    }
+
+    /* quick amounts: 44px inset tiles on an even grid; the selected one has a teal edge and a teal-text label */
+    .mx_ClarivaRecharge_chips {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+        gap: var(--cpd-space-2x);
+    }
+
+    .mx_ClarivaRecharge_chip {
+        @mixin cg-inset;
+        @mixin cg-press;
+        @mixin cg-numerals;
+
+        --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out),
+            box-shadow var(--cg-dur-hover) var(--cg-ease-out), color var(--cg-dur-hover) var(--cg-ease-out);
+
+        box-sizing: border-box;
+        min-height: var(--clariva-tap);
+        margin: 0;
+        padding: 0 var(--cpd-space-3x);
+        border: 0;
+        border-radius: var(--cg-r-md);
+        color: var(--cg-text);
+        font-size: var(--cg-fs-lg);
+        font-weight: 600;
+        cursor: pointer;
+
+        &::before {
+            content: "\20B9";
+            margin-inline-end: 1px;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover:not(:disabled) {
+                background-image: linear-gradient(var(--cg-hover-tint), var(--cg-hover-tint));
+            }
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--cg-focus);
+            outline-offset: 2px;
+        }
+
+        &:disabled {
+            color: var(--cg-text-3);
+            cursor: not-allowed;
+        }
+
+        &.mx_ClarivaRecharge_chip_selected {
+            box-shadow: inset 0 0 0 1.5px var(--cg-teal);
+            color: var(--cg-teal-text);
+        }
+    }
+
+    .mx_ClarivaRecharge_summary {
+        @mixin cg-inset;
+        @mixin cg-numerals;
+
+        margin: 0;
+        padding: var(--cpd-space-3x) var(--cpd-space-4x);
+        border-radius: var(--cg-r-md);
+        color: var(--cg-text);
+        font-size: var(--cg-fs-md);
+        font-weight: 500;
+    }
+
+    .mx_ClarivaRecharge_error,
+    .mx_ClarivaRecharge_info {
+        @mixin cg-inset;
+
+        margin: 0;
+        padding: var(--cpd-space-3x) var(--cpd-space-4x);
+        border-radius: var(--cg-r-md);
+        font-size: var(--cg-fs-md);
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+    }
+
+    .mx_ClarivaRecharge_error {
+        @mixin cg-error-glyph;
+
+        box-shadow:
+            var(--cg-edge-flat),
+            inset 3px 0 0 var(--cg-coral);
+        color: var(--cg-coral-text);
+    }
+
+    .mx_ClarivaRecharge_info {
+        display: flex;
+        align-items: center;
+        gap: var(--cpd-space-2x);
+        box-shadow:
+            var(--cg-edge-flat),
+            inset 3px 0 0 var(--cg-teal);
+        color: var(--cg-text);
+    }
+
+    /*
+     * "Processing recharge...": takes the primary pill's place while the order / payment is in flight: the same Ink Navy pill,
+     * dimmed, with a spinner and a status. It is not a button, so it takes no press and no hover.
+     */
+    .mx_ClarivaRecharge_progress {
+        @mixin cg-btn-primary;
+
+        justify-content: center;
+        min-height: var(--cpd-space-12x);
+        opacity: 0.82;
+        cursor: progress;
+        pointer-events: none;
+
+        /* the stock spinner fills its row (flex: 1, width: 100%): here it is just the 24px glyph beside the words */
+        .mx_Spinner {
+            flex: none;
+            width: auto;
+            height: auto;
+        }
+
+        .mx_Spinner_icon {
+            background-color: var(--cg-progress-track);
+
+            &::before {
+                background-color: var(--cg-bg);
+            }
+        }
+    }
+
+    .mx_ClarivaRecharge_secure {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--cpd-space-1-5x);
+        margin: calc(-1 * var(--cpd-space-1x)) 0 0;
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        text-align: center;
+
+        svg {
+            flex: none;
+            width: 16px;
+            height: 16px;
+        }
+    }
+
+    .mx_ClarivaRecharge_result {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--cpd-space-2x);
+        text-align: center;
+
+        p {
+            margin: 0;
+            font-size: var(--cg-fs-md);
+            overflow-wrap: anywhere;
+        }
+
+        .mx_ClarivaRecharge_error {
+            align-self: stretch;
+            text-align: left;
+        }
+
+        .mx_ClarivaDialog_buttons {
+            align-self: stretch;
+        }
+    }
+}
+
+/* the progress pill's spinner track: the pill is navy in light and mist in dark, so the track is a veil of its text colour */
+:root[data-clariva] body {
+    --cg-progress-track: rgba(234, 247, 245, 0.28);
+}
+
+:root[data-clariva] body[class*="cpd-theme-dark"] {
+    --cg-progress-track: rgba(6, 20, 31, 0.28);
+}
+
+@media (max-width: 600px) {
+    .mx_ClarivaRechargeDialog .mx_ClarivaRecharge_progress {
+        width: 100%;
+    }
+}
+
+/* ───────────────────────────── the success moment (the one allowed delight) ───────────────────────────── */
+
+/*
+ * RechargeSuccess: the coin glints once (CoinIcon `glint`), a teal check draws itself (stroke-dashoffset, 400 ms) and the
+ * title is the display face. `.mx_ClarivaSuccess_seal_animate` is on the seal ONLY while it may animate (the component drops
+ * it, and the glint, under prefers-reduced-motion): without it the seal is the finished picture, drawn.
+ */
+@keyframes mx_ClarivaSuccess_draw {
+    from {
+        stroke-dashoffset: 1;
+    }
+}
+
+@keyframes mx_ClarivaSuccess_badge {
+    from {
+        opacity: 0;
+        transform: scale(0.6);
+    }
+}
+
+.mx_ClarivaSuccess {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--cpd-space-2x);
+    width: 100%;
+}
+
+.mx_ClarivaSuccess_seal {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 96px;
+    height: 96px;
+    margin-bottom: var(--cpd-space-2x);
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 40%, var(--cg-amber-wash), transparent 72%), var(--cg-hover-tint);
+    box-shadow: var(--cg-edge-flat);
+}
+
+.mx_ClarivaSuccess_coin {
+    display: grid;
+    place-items: center;
+}
+
+/* the check badge sits on the coin's lower right: a Deep Teal disc with a white tick (4.9:1) */
+.mx_ClarivaSuccess_check {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 34px;
+    height: 34px;
+    filter: drop-shadow(0 2px 4px rgba(11, 31, 58, 0.25));
+
+    .mx_ClarivaSuccess_disc {
+        fill: var(--cg-teal-deep);
+        stroke: var(--cg-bg);
+        stroke-width: 2;
+    }
+
+    .mx_ClarivaSuccess_tick {
+        fill: none;
+        stroke: var(--cg-on-teal-deep);
+        stroke-width: 2.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-dasharray: 1;
+        stroke-dashoffset: 0;
+    }
+}
+
+.mx_ClarivaSuccess_seal_animate .mx_ClarivaSuccess_check {
+    animation: mx_ClarivaSuccess_badge 260ms var(--cg-ease-out) 320ms backwards;
+
+    .mx_ClarivaSuccess_tick {
+        animation: mx_ClarivaSuccess_draw 400ms var(--cg-ease-out) 480ms backwards;
+    }
+}
+
+.mx_ClarivaSuccess_title {
+    @mixin cg-display-sm;
+
+    margin: 0;
+    color: var(--cg-text);
+    font-size: var(--cg-fs-2xl);
+}
+
+.mx_ClarivaSuccess_body {
+    margin: 0;
+    color: var(--cg-text);
+    font-size: var(--cg-fs-md);
+}
+
+.mx_ClarivaSuccess_balance {
+    @mixin cg-numerals;
+
+    margin: 0;
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-lg);
+    font-weight: 500;
+}
+
+/* ───────────────────────────── Billing and Payments tab ───────────────────────────── */
+
+/* each section is one inset tile: Max Credits and the bank details are two quiet cards on the dialog's glass */
+.mx_ClarivaMaxCredits,
+.mx_ClarivaBank {
+    @mixin cg-inset;
+
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: var(--cpd-space-5x);
+    border-radius: var(--cg-r-lg);
+}
+
+.mx_ClarivaMaxCredits {
+    gap: var(--cpd-space-3x);
+    max-width: 400px;
+
+    .mx_ClarivaMaxCredits_inputRow {
+        max-width: 240px;
+    }
+
+    .mx_ClarivaMaxCredits_loading {
+        display: flex;
+        align-items: center;
+        min-height: var(--cpd-space-12x);
+    }
+
+    .mx_ClarivaMaxCredits_help {
+        margin: var(--cpd-space-0-5x) 0 0;
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        line-height: 1.4;
+    }
+
+    /* [Cancel][Save]: primary on the right (full-width column, primary on top, on a phone) */
+    .mx_ClarivaMaxCredits_buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: var(--cpd-space-3x);
+
+        button {
+            touch-action: manipulation;
+        }
+    }
+
+    .mx_ClarivaMaxCredits_success,
+    .mx_ClarivaMaxCredits_error {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--cpd-space-2x);
+        margin: 0;
+        font-size: var(--cg-fs-md);
+        font-weight: 500;
+
+        svg {
+            flex: none;
+            width: 20px;
+            height: 20px;
+            margin-top: 1px;
+        }
+    }
+
+    .mx_ClarivaMaxCredits_success {
+        color: var(--cg-teal-text);
+    }
+
+    .mx_ClarivaMaxCredits_error {
+        color: var(--cg-coral-text);
+    }
+}
+
+.mx_ClarivaBank {
+    gap: var(--cpd-space-4x);
+    max-width: 440px;
+
+    .mx_ClarivaBank_error,
+    .mx_ClarivaBank_success {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--cpd-space-2x);
+        margin: 0;
+        font-size: var(--cg-fs-md);
+        font-weight: 500;
+        overflow-wrap: anywhere;
+
+        svg {
+            flex: none;
+            width: 20px;
+            height: 20px;
+            margin-top: 1px;
+        }
+    }
+
+    .mx_ClarivaBank_error {
+        color: var(--cg-coral-text);
+    }
+
+    .mx_ClarivaBank_success {
+        color: var(--cg-teal-text);
+    }
+
+    .mx_ClarivaBank_buttons {
+        display: flex;
+        justify-content: flex-start;
+
+        button {
+            touch-action: manipulation;
+        }
+    }
+}
+
+@media (max-width: 600px) {
+    .mx_ClarivaMaxCredits {
+        max-width: none;
+
+        .mx_ClarivaMaxCredits_inputRow {
+            max-width: none;
+        }
+
+        .mx_ClarivaMaxCredits_buttons {
+            flex-direction: column-reverse;
+
+            button {
+                width: 100%;
+            }
+        }
+    }
+
+    .mx_ClarivaBank {
+        max-width: none;
+
+        .mx_ClarivaBank_buttons button {
+            width: 100%;
+        }
+    }
+}

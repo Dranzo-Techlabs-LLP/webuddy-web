@@ -1,0 +1,478 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Responsive shell (src/clariva/components/shell). Same layout idea as the Android app:
+ *
+ *   >= 1101px  desktop   glass space rail (72px) + glass Chats list + chat side by side (the stock layout, polished in _chats.pcss)
+ *   769-1100   tablet    the same two panes with a fixed list: the rail stays the 72px icon rail and the list is 320px,
+ *                        so the chat keeps the rest (it cannot be dragged any more, it is a divider only)
+ *   <= 768px   phone     single-pane master/detail: the Chats list OR the open chat/page, never both, with a floating
+ *                        glass tab bar (Chats / Wallet / Me) over the list
+ *
+ * `ClarivaShell` keeps two attributes on <html>: `data-clariva` (scopes everything here) and `data-clariva-view`
+ * ("list" | "detail": what a phone shows). Upstream sets inline widths on the list (the resizer) and on the right panel
+ * (re-resizable), so the structural rules below need !important; they are all under `:root[data-clariva]` and the
+ * relevant media query, so stock Element, and desktop, are unaffected.
+ *
+ * Phone rules: mobile-first sizes (44px targets, 16px inputs), dvh + visual-viewport height so the composer stays above
+ * the on-screen keyboard (ClarivaShell sets --clariva-vvh / --clariva-vv-top), env(safe-area-inset-*) padding,
+ * no horizontal scroll at 360px. Breakpoints: 480 / 768 / 1024 / 1440 are the design grid; the shell only needs 768 and
+ * 1100 (list + rail + a usable chat), and the 360-480px tweaks are in the phone block.
+ *
+ * Materials on a phone. The list pane there is the pane wash (no blur): the tab bar floating over it is the one backdrop
+ * blur of the list screen, and a blur inside a blurred pane would nest (DESIGN-SYSTEM.md section 3, rule 1). The tab bar is
+ * cg-glass-thick and carries --cg-text only: the list scrolls under it (rule 7).
+ */
+
+/* ───────────────────────────── pieces that exist at every width ───────────────────────────── */
+
+/* hidden until the phone block turns them on (and out of the tab order while hidden) */
+:root[data-clariva] .mx_ClarivaBackButton,
+:root[data-clariva] .mx_ClarivaDetailBar,
+:root[data-clariva] .mx_ClarivaTabBar {
+    display: none;
+}
+
+/* the list column never shrinks below what a row needs, whatever width the resizer remembered */
+:root[data-clariva] .mx_MatrixChat {
+    touch-action: manipulation;
+}
+
+/* ───────────────────────────── tablet: 769px - 1100px ───────────────────────────── */
+
+@media (min-width: 769px) and (max-width: 1100px) {
+    /* rail (72px, icons) + 320px list; the chat keeps the rest */
+    :root[data-clariva] .mx_MatrixChat > .mx_LeftPanel_outerWrapper {
+        flex: 0 0 auto;
+        width: 392px !important;
+        min-width: 0;
+        max-width: 50%;
+    }
+
+    /* the width is fixed here, so the drag handle stays as a divider only */
+    :root[data-clariva] .mx_MatrixChat > .mx_ResizeHandle {
+        pointer-events: none;
+        cursor: default;
+    }
+
+    :root[data-clariva] .mx_LeftPanel {
+        --clariva-chats-pad: var(--cpd-space-3x);
+    }
+
+    /* the rail is always the icon rail here: nothing to expand it into */
+    :root[data-clariva] .mx_SpacePanel .mx_SpacePanel_toggleCollapse {
+        display: none;
+    }
+}
+
+/* ───────────────────────────── phone: <= 768px ───────────────────────────── */
+
+@keyframes mx_ClarivaPaneIn {
+    from {
+        opacity: 0;
+        transform: translateX(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes mx_ClarivaListIn {
+    from {
+        opacity: 0;
+        transform: translateX(-12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (max-width: 768px) {
+    /* the app fills exactly the visible area (visual viewport: the keyboard is not part of it); the page never scrolls */
+    :root[data-clariva][data-clariva-view],
+    :root[data-clariva][data-clariva-view] body {
+        overflow: hidden;
+        overscroll-behavior: none;
+    }
+
+    :root[data-clariva] .mx_MatrixChat_wrapper {
+        position: fixed;
+        top: var(--clariva-vv-top, 0px);
+        right: 0;
+        left: 0;
+        width: auto;
+        height: 100%;
+        height: 100dvh;
+        height: var(--clariva-vvh, 100dvh);
+    }
+
+    :root[data-clariva] .mx_MatrixChat {
+        box-sizing: border-box;
+        padding-right: env(safe-area-inset-right, 0px);
+        padding-left: env(safe-area-inset-left, 0px);
+    }
+
+    /* single pane: the list... */
+    :root[data-clariva] .mx_MatrixChat > .mx_LeftPanel_outerWrapper {
+        flex: 1 1 100%;
+        width: 100% !important;
+        min-width: 0;
+        max-width: none !important;
+    }
+
+    /* ...or what it opened */
+    :root[data-clariva] .mx_MatrixChat > .mx_RoomView_wrapper {
+        flex: 1 1 100%;
+        width: 100%;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        box-sizing: border-box;
+    }
+
+    :root[data-clariva][data-clariva-view="list"] .mx_MatrixChat > .mx_RoomView_wrapper {
+        display: none !important;
+    }
+
+    /* the list stays laid out behind an open chat (display: none would forget its scroll position) but cannot be
+       seen, tapped or tabbed to (so neither can the tab bar, which lives inside it) */
+    :root[data-clariva][data-clariva-view="detail"] .mx_MatrixChat > .mx_LeftPanel_outerWrapper {
+        position: absolute !important;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    /* no rail (the account menu lives in the Chats header) and no drag handle */
+    :root[data-clariva] .mx_LeftPanel_wrapper > .mx_SpacePanel,
+    :root[data-clariva] .mx_MatrixChat > .mx_ResizeHandle {
+        display: none !important;
+    }
+
+    :root[data-clariva][data-clariva-view="detail"] .mx_MatrixChat > .mx_RoomView_wrapper {
+        animation: mx_ClarivaPaneIn var(--clariva-dur-enter, 200ms) var(--clariva-ease-out, ease-out) both;
+    }
+
+    :root[data-clariva][data-clariva-view="list"] .mx_MatrixChat > .mx_LeftPanel_outerWrapper {
+        animation: mx_ClarivaListIn var(--clariva-dur-enter, 200ms) var(--clariva-ease-out, ease-out) both;
+    }
+
+    /* ── Chats list ── */
+
+    /* the list pane is the pane wash here, not a second blur under the tab bar */
+    :root[data-clariva] .mx_LeftPanel_wrapper .mx_LeftPanel_wrapper--user {
+        background-color: var(--cg-surface-pane);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        box-shadow: none;
+    }
+
+    :root[data-clariva] .mx_ClarivaChatsHeader {
+        padding-top: calc(var(--cpd-space-3x) + env(safe-area-inset-top, 0px));
+    }
+
+    /* the "+" lives in the round start-chat button */
+    :root[data-clariva] .mx_LeftPanel .mx_RoomListHeader .mx_RoomListHeader_plusButton {
+        display: none;
+    }
+
+    :root[data-clariva] .mx_LeftPanel .mx_ClarivaChatsFab {
+        display: inline-flex;
+    }
+
+    /* a phone has no Ctrl+K */
+    :root[data-clariva] .mx_LeftPanel .mx_LeftPanel_filterContainer .mx_RoomSearch .mx_RoomSearch_shortcutPrompt {
+        display: none;
+    }
+
+    /* the last row clears the tab bar (56px + 12px + 16px) and the home indicator */
+    :root[data-clariva] .mx_LeftPanel .mx_LeftPanel_actualRoomListContainer {
+        padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    }
+
+    :root[data-clariva] .mx_LeftPanel {
+        --clariva-row-min: 76px;
+        --clariva-chats-pad: var(--cpd-space-4x);
+    }
+
+    /* no hover on a phone: the unread badge stays, the "..." / bell buttons go (long-press opens the menu) */
+    :root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_RoomTile_menuButton,
+    :root[data-clariva]
+        .mx_LeftPanel
+        .mx_RoomTile.mx_RoomTile_clariva
+        .mx_RoomTile_notificationsButton:not(.mx_RoomTile_notificationsButton_show) {
+        display: none !important;
+    }
+
+    :root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_RoomTile_badgeContainer {
+        display: flex !important;
+        width: auto !important;
+        height: auto !important;
+    }
+
+    /* ── floating glass tab bar: Chats / Wallet / Me (ClarivaTabBar) ── */
+
+    /*
+     * 56px tall, 12px above the home indicator, left of the round start-chat button (16px + 56px + 12px on the right).
+     * Thick glass because the list scrolls under it (rule 7); its labels are --cg-text only. It is a child of the list
+     * column, so it disappears with the list while a chat is open. The keyboard hides it (a class from useKeyboardOpen).
+     */
+    :root[data-clariva] .mx_LeftPanel .mx_ClarivaTabBar {
+        @mixin cg-glass-thick;
+
+        position: absolute;
+        right: calc(var(--cpd-space-4x) + 56px + var(--cpd-space-3x));
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        left: var(--cpd-space-4x);
+        z-index: var(--cg-z-float);
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        box-sizing: border-box;
+        max-width: 420px;
+        height: 56px;
+        margin: 0 auto;
+        padding: 4px;
+        border-radius: var(--cg-r-pill);
+        opacity: 1;
+        transition:
+            opacity var(--cg-dur-medium) var(--cg-ease-out),
+            transform var(--cg-dur-medium) var(--cg-ease-out),
+            visibility 0s;
+    }
+
+    /* the keyboard is up: step aside (opacity + a small drop, then out of the tab order) */
+    :root[data-clariva] .mx_LeftPanel .mx_ClarivaTabBar.mx_ClarivaTabBar_hidden {
+        opacity: 0;
+        transform: var(--cg-exit-to);
+        visibility: hidden;
+        pointer-events: none;
+        transition:
+            opacity var(--cg-dur-exit-medium) var(--cg-ease-out),
+            transform var(--cg-dur-exit-medium) var(--cg-ease-out),
+            visibility 0s linear var(--cg-dur-exit-medium);
+    }
+
+    /* the sliding indicator: a teal glass drop behind the current tab; it moves with the spring, transform only */
+    :root[data-clariva] .mx_ClarivaTabBar .mx_ClarivaTabBar_indicator {
+        @mixin cg-glass-tint;
+
+        position: absolute;
+        top: 4px;
+        bottom: 4px;
+        left: 4px;
+        width: calc((100% - 8px) / 3);
+        border-radius: var(--cg-r-pill);
+        transition: transform var(--cg-dur-sheet) var(--cg-spring);
+        pointer-events: none;
+    }
+
+    :root[data-clariva] .mx_ClarivaTabBar .mx_ClarivaTabBar_tab {
+        @mixin cg-press;
+
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        min-width: 0;
+        min-height: 48px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: var(--cg-r-pill);
+        background: none;
+        color: var(--cg-text);
+        cursor: pointer;
+
+        @mixin cg-focus-ring;
+    }
+
+    :root[data-clariva] .mx_ClarivaTabBar .mx_ClarivaTabBar_glyph {
+        position: relative;
+        display: inline-flex;
+        line-height: 0;
+    }
+
+    :root[data-clariva] .mx_ClarivaTabBar .mx_ClarivaTabBar_icon {
+        width: 24px;
+        height: 24px;
+        fill: currentcolor;
+    }
+
+    :root[data-clariva] .mx_ClarivaTabBar .mx_ClarivaTabBar_label {
+        color: var(--cg-text);
+        font-size: var(--cg-fs-xs);
+        font-weight: 600;
+        line-height: 1;
+    }
+
+    /* the unread badge hangs off the Chats icon: coral, so it is not lost on the teal indicator behind the current tab */
+    :root[data-clariva] .mx_ClarivaTabBar .mx_ClarivaTabBar_badge {
+        position: absolute;
+        top: -8px;
+        left: calc(100% - 10px);
+        display: flex;
+        line-height: 1;
+    }
+
+    :root[data-clariva]
+        .mx_ClarivaTabBar
+        .mx_ClarivaTabBar_badge
+        .mx_NotificationBadge.mx_NotificationBadge_visible:not(.mx_NotificationBadge_dot) {
+        background: var(--cg-coral);
+        box-shadow:
+            inset 0 1px 0 var(--cg-highlight),
+            var(--cg-e1);
+        color: var(--cg-on-coral);
+    }
+
+    /* ── chat (detail) ── */
+
+    /* the chat-room partial owns the header height (--clariva-header-h); here only the notch inset and the Back arrow */
+    :root[data-clariva] .mx_RoomView_wrapper .mx_RoomHeader {
+        height: calc(var(--clariva-header-h, 56px) + env(safe-area-inset-top, 0px));
+        padding: env(safe-area-inset-top, 0px) var(--cpd-space-2x) 0 var(--cpd-space-1x);
+    }
+
+    :root[data-clariva] .mx_RoomView_wrapper .mx_RoomHeader .mx_RoomHeader_info {
+        padding-right: 0;
+    }
+
+    /* the Back arrow lives on the room header's thick glass: --cg-text only */
+    :root[data-clariva] .mx_ClarivaBackButton {
+        @mixin cg-press;
+
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        width: var(--clariva-tap, 44px);
+        height: var(--clariva-tap, 44px);
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: var(--cg-r-pill);
+        background: transparent;
+        color: var(--cg-text);
+        cursor: pointer;
+
+        @mixin cg-focus-ring;
+    }
+
+    :root[data-clariva] .mx_ClarivaBackButton .mx_ClarivaBackButton_icon {
+        width: 24px;
+        height: 24px;
+    }
+
+    /* panes without a room header (user page, room still loading, legacy header) get a glass bar to carry the Back arrow */
+    :root[data-clariva][data-clariva-view="detail"] .mx_RoomView_wrapper > .mx_ClarivaDetailBar {
+        @mixin cg-glass-thick;
+
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: var(--cpd-space-2x);
+        box-sizing: border-box;
+        min-height: calc(56px + env(safe-area-inset-top, 0px));
+        padding: env(safe-area-inset-top, 0px) var(--cpd-space-3x) 0 var(--cpd-space-1x);
+    }
+
+    :root[data-clariva][data-clariva-view] .mx_RoomView_wrapper:has(.mx_RoomHeader) > .mx_ClarivaDetailBar {
+        display: none;
+    }
+
+    :root[data-clariva] .mx_ClarivaDetailBar .mx_ClarivaDetailBar_label {
+        color: var(--cg-text);
+        font: var(--cpd-font-body-lg-semibold);
+    }
+
+    /* the right panel (room info, threads, ...) covers the chat instead of squeezing it */
+    :root[data-clariva] .mx_RoomView_wrapper .mx_MainSplit {
+        position: relative;
+    }
+
+    :root[data-clariva] .mx_RoomView_wrapper .mx_MainSplit > .mx_RightPanel_ResizeWrapper {
+        position: absolute !important;
+        inset: 0;
+        z-index: var(--clariva-z-sheet, 20);
+        width: 100% !important;
+        height: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        background-color: var(--cpd-color-bg-canvas-default);
+    }
+
+    :root[data-clariva] .mx_RoomView_wrapper .mx_MainSplit > .mx_RightPanel_ResizeWrapper .mx_ResizeHandle--horizontal {
+        display: none !important;
+    }
+
+    /* (the top toasts are centred by _dialogs.pcss; the bottom, non-urgent ones span the width here) */
+    :root[data-clariva] .mx_NonUrgentToastContainer {
+        right: var(--cpd-space-3x);
+        bottom: calc(var(--cpd-space-3x) + env(safe-area-inset-bottom, 0px));
+        left: var(--cpd-space-3x);
+    }
+
+    :root[data-clariva] .mx_NonUrgentToastContainer .mx_NonUrgentToastContainer_toast {
+        width: auto;
+        max-width: none;
+    }
+}
+
+/* hover on the shell's phone controls only where hover is real (a touch screen never sticks in a hover state) */
+@media (max-width: 768px) and (hover: hover) and (pointer: fine) {
+    :root[data-clariva] .mx_ClarivaBackButton:hover,
+    :root[data-clariva] .mx_ClarivaTabBar .mx_ClarivaTabBar_tab:hover {
+        background-color: var(--clariva-hover-wash);
+    }
+}
+
+/* 360-480px: the chip row and rows stay inside the screen (no horizontal scroll) */
+@media (max-width: 480px) {
+    :root[data-clariva] .mx_ClarivaChatsHeader {
+        padding-right: var(--cpd-space-2x);
+        padding-left: var(--cpd-space-2x);
+    }
+
+    :root[data-clariva] .mx_ClarivaChatsHeader .mx_ClarivaCoinChip {
+        padding: 0 var(--cpd-space-3x) 0 var(--cpd-space-2x);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root[data-clariva][data-clariva-view="detail"] .mx_MatrixChat > .mx_RoomView_wrapper,
+    :root[data-clariva][data-clariva-view="list"] .mx_MatrixChat > .mx_LeftPanel_outerWrapper {
+        animation: none;
+    }
+}
+
+/* ───────────────────────────── safe areas on the sign-in page (viewport-fit=cover) ───────────────────────────── */
+
+.mx_AuthPage.mx_AuthPage_clariva {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+}

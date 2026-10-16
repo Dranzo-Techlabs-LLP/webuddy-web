@@ -14,16 +14,13 @@
         "app_launch_unexpected_error": "Erro inesperado preparando o app. Veja console para detalhes.",
         "cannot_load_config": "Incapaz de carregar arquivo de configuração: por favor atualize a página para tentar de novo.",
         "invalid_configuration_no_server": "Configuração inválida: nenhum servidor default especificado.",
-        "invalid_json": "Sua configuração do Element contém JSON inválido. Por favor corrija o problema e recarregue a página.",
         "invalid_json_detail": "A mensagem do parser é: %(message)s",
-        "invalid_json_generic": "JSON inválido",
-        "misconfigured": "Seu Element está mal configurado"
+        "invalid_json_generic": "JSON inválido"
     },
     "incompatible_browser": {
         "title": "Browser insuportado"
     },
     "powered_by_matrix_with_logo": "Chat descentralizado e encriptado & colaboração, powered by $matrixLogo",
     "unknown_device": "Dispositivo desconhecido",
-    "web_default_device_name": "%(appName)s: %(browserName)s em %(osName)s",
-    "welcome_to_element": "Boas-vindas a Element"
+    "web_default_device_name": "%(appName)s: %(browserName)s em %(osName)s"
 }

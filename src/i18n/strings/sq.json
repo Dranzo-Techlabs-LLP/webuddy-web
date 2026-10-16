@@ -16,10 +16,8 @@
         "cannot_load_config": "S’arrihet të ngarkohet kartelë formësimesh: ju lutemi, rifreskoni faqen dhe riprovoni.",
         "invalid_configuration_mixed_server": "Formësim i pavlefshëm: një default_hs_url s’mund të jepet tok me default_server_name, apo default_server_config",
         "invalid_configuration_no_server": "Formësim i pavlefshëm: s’është caktuar shërbyes parazgjedhje.",
-        "invalid_json": "Formësimi juaj i Element-it përmban JSON të pavlefshëm. Ju lutemi, ndreqeni problemin dhe ringarkoni faqen.",
         "invalid_json_detail": "Mesazhi prej procesit është: %(message)s",
-        "invalid_json_generic": "JSON i pavlefshëm",
-        "misconfigured": "Element-i juaj është i keqformësuar"
+        "invalid_json_generic": "JSON i pavlefshëm"
     },
     "incompatible_browser": {
         "title": "Shfletues i pambuluar"
@@ -27,6 +25,5 @@
     "powered_by_matrix": "Bazuar në Matrix",
     "powered_by_matrix_with_logo": "Fjalosje &amp; bashkëpunim i decentralizuar, i fshehtëzuar, bazuar në $matrixLogo",
     "unknown_device": "Pajisje e panjohur",
-    "web_default_device_name": "%(appName)s: %(browserName)s në %(osName)s",
-    "welcome_to_element": "Mirë se vini te Element"
+    "web_default_device_name": "%(appName)s: %(browserName)s në %(osName)s"
 }

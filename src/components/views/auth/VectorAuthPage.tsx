@@ -1,17 +1,8 @@
 /*
-Copyright 2019, 2020 New Vector Ltd
+Copyright 2019-2024 New Vector Ltd.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only
+Please see LICENSE in the repository root for full details.
 */
 
 import * as React from "react";
@@ -20,14 +11,15 @@ import SdkConfig from "matrix-react-sdk/src/SdkConfig";
 import VectorAuthFooter from "./VectorAuthFooter";
 
 export default class VectorAuthPage extends React.PureComponent {
-    private static welcomeBackgroundUrl?: string;
+    // CLARIVA: `null` = no configured image, use the Clariva gradient (res/css/clariva/_brand.pcss)
+    private static welcomeBackgroundUrl?: string | null;
 
     // cache the url as a static to prevent it changing without refreshing
-    private static getWelcomeBackgroundUrl(): string {
-        if (VectorAuthPage.welcomeBackgroundUrl) return VectorAuthPage.welcomeBackgroundUrl;
+    private static getWelcomeBackgroundUrl(): string | null {
+        if (VectorAuthPage.welcomeBackgroundUrl !== undefined) return VectorAuthPage.welcomeBackgroundUrl;
 
         const brandingConfig = SdkConfig.getObject("branding");
-        VectorAuthPage.welcomeBackgroundUrl = "themes/element/img/backgrounds/lake.jpg";
+        VectorAuthPage.welcomeBackgroundUrl = null;
 
         const configuredUrl = brandingConfig?.get("welcome_background_url");
         if (configuredUrl) {
@@ -43,9 +35,12 @@ export default class VectorAuthPage extends React.PureComponent {
     }
 
     public render(): React.ReactElement {
-        const pageStyle = {
-            background: `center/cover fixed url(${VectorAuthPage.getWelcomeBackgroundUrl()})`,
-        };
+        const backgroundUrl = VectorAuthPage.getWelcomeBackgroundUrl();
+        // CLARIVA: with no configured image the page background (and its frosted-glass copy) comes from the
+        // `mx_AuthPage_clariva` CSS gradient, so there is no inline `background` at all
+        const pageStyle: { background?: string } = backgroundUrl
+            ? { background: `center/cover fixed url(${backgroundUrl})` }
+            : {};
 
         const modalStyle: React.CSSProperties = {
             position: "relative",
@@ -59,7 +54,7 @@ export default class VectorAuthPage extends React.PureComponent {
             bottom: 0,
             left: 0,
             filter: "blur(40px)",
-            background: pageStyle.background,
+            ...(pageStyle.background ? { background: pageStyle.background } : {}),
         };
 
         const modalContentStyle: React.CSSProperties = {
@@ -70,7 +65,7 @@ export default class VectorAuthPage extends React.PureComponent {
         };
 
         return (
-            <div className="mx_AuthPage" style={pageStyle}>
+            <div className={backgroundUrl ? "mx_AuthPage" : "mx_AuthPage mx_AuthPage_clariva"} style={pageStyle}>
                 <div className="mx_AuthPage_modal" style={modalStyle}>
                     <div className="mx_AuthPage_modalBlur" style={blurStyle} />
                     <div className="mx_AuthPage_modalContent" style={modalContentStyle}>

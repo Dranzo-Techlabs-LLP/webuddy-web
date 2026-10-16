@@ -1,0 +1,956 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Clariva sign-in: the signature page of the "Clear Water" glass edition (docs/clariva/DESIGN-SYSTEM.md section 6).
+ *
+ * A LIVE aurora (ClarivaAurora, rendered by ClarivaAuthPage) drifts behind ONE thick-glass card, the one blurred layer
+ * of the page (rule 6: nothing else with a backdrop-filter overlaps the animated layer, so the logo tile, the fields, the
+ * notices and the Google block are opaque or inset tiles, never glass). While a dialog is open over the page the drift
+ * pauses, because the dialog's own blur would otherwise re-blur a moving layer (see "dialog open" below).
+ *
+ * TEXT. The card is thick glass: --cg-text, --cg-text-2 (helper text, labels, the footer) and the accent texts
+ * (--cg-teal-text for links and "available", --cg-coral-text for errors) are the measured pairs; Compound's text colours are
+ * not used on it. Inputs are inset tiles 52px tall with the label ABOVE (visible, never floating), a 1px edge >= 3:1 and the
+ * 2px focus ring. The mark "surfaces" once on first paint (opacity + scale + a brightness settle, a CSS transition from an
+ * @starting-style); reduced motion is the blanket in _a11y.pcss.
+ *
+ * The same field / support / link / dialog-state classes serve the Clariva dialogs (forgot password, role, deactivate,
+ * recharge, billing), where they sit on the dialog's glass exactly as they sit on the card.
+ */
+
+@keyframes mx_ClarivaAuth_spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── the page ─────────────────────────────────────────────────────────────────────────────────────── */
+
+.mx_ClarivaAuth {
+    position: fixed;
+    inset: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    isolation: isolate;
+    background: var(--cg-bg);
+    color: var(--cg-text);
+    font-family: var(--cg-font-ui);
+    font-size: var(--cg-fs-md);
+    line-height: 1.5;
+}
+
+/* the aurora layer stays put while a short window scrolls the card (it fills the viewport, not the scroll height) */
+.mx_ClarivaAuth > .cg-aurora {
+    position: fixed;
+}
+
+/*
+ * dialog open: pause the drift. The dialog (thick glass on a blurred scrim) would re-blur a moving layer every frame, and
+ * nobody watches the aurora behind a dialog. (:has() is everywhere that matters; without it the drift just keeps going.)
+ */
+:root[data-clariva]:has(.mx_Dialog_wrapper) .mx_ClarivaAuth .cg-aurora--live::before {
+    animation-play-state: paused;
+    will-change: auto;
+}
+
+.mx_ClarivaAuth_scroll {
+    box-sizing: border-box;
+    min-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: max(var(--cpd-space-4x), env(safe-area-inset-top)) max(var(--cpd-space-4x), env(safe-area-inset-right))
+        max(var(--cpd-space-4x), env(safe-area-inset-bottom)) max(var(--cpd-space-4x), env(safe-area-inset-left));
+}
+
+/* the ONE glass card of the page */
+.mx_ClarivaAuth_card {
+    @mixin cg-glass-thick;
+
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 440px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--cpd-space-7x) var(--cpd-space-8x) var(--cpd-space-2x);
+    border-radius: var(--cg-r-xl);
+    color: var(--cg-text);
+    text-align: center;
+}
+
+/*
+ * The mark's tile: an opaque, light "paper" tile (the navy bubble needs a light ground in both themes), never blurred.
+ * It surfaces once, 500 ms: opacity 0 -> 1, scale .94 -> 1 and a brightness settle (the @starting-style rule below).
+ */
+.mx_ClarivaAuth_logoTile {
+    align-self: center;
+    box-sizing: border-box;
+    width: 72px;
+    height: 72px;
+    margin-bottom: var(--cpd-space-4x);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 24px;
+    background: linear-gradient(155deg, #ffffff 0%, #def4f0 100%);
+    box-shadow:
+        inset 0 1px 0 #ffffff,
+        inset 0 0 0 1px var(--cg-line),
+        var(--cg-e2);
+    opacity: 1;
+    transform: none;
+    filter: brightness(1);
+    transition:
+        opacity 500ms var(--cg-ease-out),
+        transform 500ms var(--cg-ease-out),
+        filter 500ms var(--cg-ease-out);
+}
+
+@starting-style {
+    .mx_ClarivaAuth_logoTile {
+        opacity: 0;
+        transform: scale(0.94);
+        filter: brightness(1.22);
+    }
+}
+
+.mx_ClarivaAuth_logo {
+    display: block;
+    width: 48px;
+    height: 39px;
+    filter: drop-shadow(0 2px 4px rgba(11, 31, 58, 0.18));
+}
+
+/* the one big Fraunces moment of the page: 28-32px, so the display recipe (with its tight tracking) applies */
+.mx_ClarivaAuth_title {
+    @mixin cg-display;
+
+    margin: 0;
+    color: var(--cg-text);
+    font-size: clamp(var(--cg-fs-2xl), 7vw, 2rem);
+    text-wrap: balance;
+}
+
+.mx_ClarivaAuth_tagline {
+    margin: var(--cpd-space-1-5x) 0 var(--cpd-space-5x);
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-md);
+    line-height: 1.5;
+    text-wrap: balance;
+}
+
+/* "You signed out" and friends: an inset tile with a teal rail; the words are --cg-text */
+.mx_ClarivaAuth_notice {
+    @mixin cg-inset;
+
+    margin-bottom: var(--cpd-space-3x);
+    padding: var(--cpd-space-3x) var(--cpd-space-4x);
+    border-radius: var(--cg-r-md);
+    box-shadow:
+        var(--cg-edge-flat),
+        inset 3px 0 0 var(--cg-teal);
+    color: var(--cg-text);
+    font-size: var(--cg-fs-md);
+    font-weight: 500;
+    line-height: 1.4;
+    text-align: start;
+}
+
+.mx_ClarivaAuth_form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-3x);
+    text-align: start;
+}
+
+/* ── fields: a visible label above the tile, helper / error text below ───────────────────────────── */
+
+.mx_ClarivaAuth_field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-1x);
+    min-width: 0;
+}
+
+.mx_ClarivaAuth_label {
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-sm);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0.01em;
+}
+
+.mx_ClarivaAuth_inputRow {
+    @mixin cg-field;
+
+    display: flex;
+    align-items: center;
+    min-height: 52px;
+    padding: 0 var(--cpd-space-4x);
+    transition: box-shadow var(--cg-dur-hover) var(--cg-ease-out);
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover:not(
+                .mx_ClarivaAuth_inputRow_disabled,
+                .mx_ClarivaAuth_inputRow_error,
+                .mx_ClarivaAuth_inputRow_success
+            ) {
+            box-shadow: inset 0 0 0 1px var(--cg-text-2);
+        }
+    }
+
+    &.mx_ClarivaAuth_inputRow_error {
+        @mixin cg-field-error;
+    }
+
+    &.mx_ClarivaAuth_inputRow_success {
+        box-shadow: inset 0 0 0 2px var(--cg-teal);
+    }
+
+    &.mx_ClarivaAuth_inputRow_disabled {
+        background-color: var(--cg-line);
+        box-shadow: var(--cg-edge-flat);
+    }
+}
+
+/* the stock "text input inside a dialog" rule (margin: 9px, 4px radius) is switched off by .mx_no_textinput on the
+   row; these make the field look the same inside dialogs and on the landing page */
+.mx_ClarivaAuth_input {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: var(--cpd-space-3x) 0;
+    border: 0;
+    border-radius: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--cg-text);
+    font-family: var(--cg-font-ui);
+    font-size: var(--cg-fs-lg); /* 17px: >= 16px, so iOS does not zoom on focus */
+    line-height: 1.4;
+    letter-spacing: 0;
+
+    &:disabled {
+        color: var(--cg-text-3);
+        cursor: not-allowed;
+    }
+}
+
+/* a placeholder is a hint, not the label (the label is above): --cg-text-3 reaches 4.6:1 on the tile.
+   :not(:disabled) out-ranks _a11y.pcss's generic placeholder rule, which would use Compound's text-secondary */
+:root[data-clariva] .mx_ClarivaAuth_input:not(:disabled)::placeholder {
+    color: var(--cg-text-3);
+    opacity: 1;
+}
+
+.mx_ClarivaAuth_prefix {
+    flex: none;
+    padding-inline-end: var(--cpd-space-2x);
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-lg);
+    font-weight: 600;
+}
+
+/* the password eye: a 44px target that does not make the row taller */
+.mx_ClarivaAuth_eye {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin: 0 calc(-1 * var(--cpd-space-3x)) 0 var(--cpd-space-1x);
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--cg-text-2);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition:
+        background-color var(--cg-dur-hover) var(--cg-ease-out),
+        color var(--cg-dur-hover) var(--cg-ease-out);
+
+    svg {
+        width: 24px;
+        height: 24px;
+        fill: currentcolor;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover:not(:disabled) {
+            background: var(--cg-hover-tint);
+            color: var(--cg-text);
+        }
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: -2px;
+    }
+
+    &:disabled {
+        cursor: not-allowed;
+        color: var(--cg-text-3);
+    }
+}
+
+/* the line under a field: error / availability / live preview / help. An icon accompanies every state that has a
+   meaning (never colour alone); the text is a direct child so screen readers get one clean live-region string. */
+.mx_ClarivaAuth_support {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--cpd-space-1-5x);
+    margin-top: var(--cpd-space-0-5x);
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-sm);
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.mx_ClarivaAuth_support_error {
+    color: var(--cg-coral-text);
+    font-weight: 500;
+}
+
+.mx_ClarivaAuth_support_available {
+    color: var(--cg-teal-text);
+}
+
+.mx_ClarivaAuth_supportIcon {
+    flex: none;
+    box-sizing: border-box;
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
+    fill: currentcolor;
+}
+
+.mx_ClarivaAuth_supportSpinner {
+    border: 2px solid currentcolor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: mx_ClarivaAuth_spin 0.8s linear infinite;
+}
+
+.mx_ClarivaAuth_forgotRow {
+    display: flex;
+    justify-content: flex-end;
+
+    /* the 44px target tucks under the field: its text sits ~12px below the tile, and the box overlaps no other target */
+    margin-block: calc(-1 * var(--cpd-space-2x)) calc(-1 * var(--cpd-space-1-5x));
+}
+
+/* a plain text link: teal-text, no underline at rest, underline on hover / keyboard focus, 44px tall target */
+.mx_ClarivaAuth_linkButton {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--cpd-space-1x);
+    border: 0;
+    border-radius: var(--cg-r-sm);
+    background: transparent;
+    color: var(--cg-teal-text);
+    font-family: var(--cg-font-ui);
+    font-size: var(--cg-fs-md);
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    touch-action: manipulation;
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover:not(:disabled) {
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+    }
+
+    &:focus-visible {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+
+    &:disabled {
+        color: var(--cg-text-3);
+        cursor: not-allowed;
+    }
+}
+
+/* switch rows ("I am a consultant", "Delete all my messages"): an inset tile, the whole row is the target */
+.mx_ClarivaAuth_switchRow {
+    @mixin cg-inset;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cpd-space-4x);
+    box-sizing: border-box;
+    min-height: 64px;
+    margin-top: var(--cpd-space-1x);
+    padding: var(--cpd-space-3x) var(--cpd-space-4x);
+    border-radius: var(--cg-r-md);
+    cursor: pointer;
+    touch-action: manipulation;
+
+    &:has(.mx_ClarivaAuth_switch:focus-visible) {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+}
+
+.mx_ClarivaAuth_switchText {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.mx_ClarivaAuth_switchTitle {
+    color: var(--cg-text);
+    font-size: var(--cg-fs-lg);
+    font-weight: 500;
+}
+
+.mx_ClarivaAuth_switchSubtitle {
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-sm);
+}
+
+.mx_ClarivaAuth_switch {
+    flex: none;
+    appearance: none;
+    position: relative;
+    box-sizing: border-box;
+    width: 52px;
+    height: 32px;
+    margin: 0;
+    border-radius: var(--cg-r-pill);
+    background: transparent;
+    border: 1.5px solid var(--cg-field-edge);
+    cursor: pointer;
+    transition:
+        background-color var(--cg-dur-hover) var(--cg-ease-out),
+        border-color var(--cg-dur-hover) var(--cg-ease-out);
+
+    &::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 23px;
+        height: 23px;
+        border-radius: 50%;
+        background: var(--cg-text-3);
+        transition:
+            transform var(--cg-dur-hover) var(--cg-ease-out),
+            background-color var(--cg-dur-hover) var(--cg-ease-out);
+    }
+
+    /* on: a Deep Teal track (fill) with a white thumb (4.9:1) */
+    &:checked {
+        background: var(--cg-teal-deep);
+        border-color: var(--cg-teal-deep);
+
+        &::after {
+            background: var(--cg-on-teal-deep);
+            transform: translateX(20px);
+        }
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+}
+
+/* buttons: the pills themselves come from _dialogs.pcss (Compound primary / secondary under .mx_ClarivaAuth); this is size */
+:root[data-clariva] .mx_ClarivaAuth_card .mx_ClarivaAuth_form button.mx_ClarivaAuth_submit[data-kind="primary"] {
+    width: 100%;
+    min-height: 52px;
+    margin-top: 0;
+    font-size: var(--cg-fs-lg);
+    touch-action: manipulation;
+}
+
+.mx_ClarivaAuth_or {
+    display: flex;
+    align-items: center;
+    gap: var(--cpd-space-3x);
+    margin: var(--cpd-space-3x) 0;
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-sm);
+
+    &::before,
+    &::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--cg-line);
+    }
+}
+
+/* Google renders its pill button in a cross-origin iframe that cannot be styled; keep it a light, centred 44px row
+   (color-scheme: light stops the iframe getting an opaque white box on a dark page) */
+.mx_ClarivaAuth_googleWrap {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: var(--clariva-tap);
+    color-scheme: light;
+
+    /* a programmatic focus target only (tabindex=-1; "Try again" hands focus to the button it mounts): the standard
+       ring, which is measured >= 3:1 on the glass card */
+    &:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+        border-radius: var(--cg-r-pill);
+    }
+}
+
+/* "Connecting to Google…" in the 44px slot until Google has drawn its button */
+.mx_ClarivaAuth_googleLoading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cg-text-2);
+    font: var(--cpd-font-body-sm-regular);
+    pointer-events: none;
+}
+
+.mx_ClarivaAuth_googleButton {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden; /* a button drawn for a wider window (rotation) is clipped, never spilled out of the card */
+    border-radius: var(--cg-r-pill);
+}
+
+/* every render draws into its own host, so one render's clean-up can never wipe another one's button */
+.mx_ClarivaAuth_googleHost {
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* the iframe cannot be disabled: cover it while busy (the container is also [inert], which stops the keyboard) */
+.mx_ClarivaAuth_googleShield {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    cursor: progress;
+}
+
+/* Google's button did not appear (script blocked / timed out / drew nothing): an inset tile with a coral rail, the title
+   in coral-text (4.6:1 on the tile). The e-mail form above it keeps working. */
+.mx_ClarivaAuth_googleNotice {
+    @mixin cg-inset;
+
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--cpd-space-2x);
+    min-width: 0;
+    padding: var(--cpd-space-4x);
+    border-radius: var(--cg-r-md);
+    box-shadow:
+        var(--cg-edge-flat),
+        inset 3px 0 0 var(--cg-coral);
+    color: var(--cg-text);
+    text-align: start;
+    overflow-wrap: anywhere;
+}
+
+/* the live region (title + body); the "Try again" button is its sibling, outside it */
+.mx_ClarivaAuth_googleNoticeText {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-2x);
+    min-width: 0;
+}
+
+.mx_ClarivaAuth_googleNoticeTitle,
+.mx_ClarivaAuth_googleNoticeBody {
+    margin: 0;
+}
+
+.mx_ClarivaAuth_googleNoticeTitle {
+    color: var(--cg-coral-text);
+    font-size: var(--cg-fs-md);
+    font-weight: 600;
+}
+
+.mx_ClarivaAuth_googleNoticeBody {
+    color: var(--cg-text);
+    font-size: var(--cg-fs-md);
+    line-height: 1.45;
+}
+
+/* "Try again" is a text link with the usual 44px target; underlined at rest because it sits inside a sentence block */
+.mx_ClarivaAuth_googleNotice .mx_ClarivaAuth_linkButton {
+    margin-inline-start: calc(-1 * var(--cpd-space-1x));
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+/* developer-only help (collapsed): --cg-text-2 on the glass; the origins are inset chips */
+.mx_ClarivaAuth_googleDevHint {
+    box-sizing: border-box;
+    margin-top: var(--cpd-space-1x);
+    text-align: start;
+    overflow-wrap: anywhere;
+
+    summary {
+        box-sizing: border-box;
+        padding: var(--cpd-space-3x) 0; /* 12 + 20 + 12 = a 44px target */
+        border-radius: var(--cg-r-sm);
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        line-height: var(--cpd-space-5x);
+        text-align: center;
+        list-style-position: inside;
+        cursor: pointer;
+        touch-action: manipulation;
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover {
+                text-decoration: underline;
+                text-underline-offset: 3px;
+            }
+        }
+
+        &:focus-visible {
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            outline: 2px solid var(--cg-focus);
+            outline-offset: 2px;
+        }
+    }
+
+    p {
+        margin: 0 0 var(--cpd-space-2x);
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        line-height: 1.45;
+    }
+}
+
+.mx_ClarivaAuth_googleDevOrigin {
+    @mixin cg-inset;
+
+    display: block;
+    box-sizing: border-box;
+    margin-bottom: var(--cpd-space-2x);
+    padding: var(--cpd-space-2x) var(--cpd-space-3x);
+    border-radius: var(--cg-r-sm);
+    color: var(--cg-text);
+    font-size: var(--cg-fs-sm);
+    font-family: var(--cpd-font-family-mono);
+    overflow-wrap: anywhere;
+    user-select: all; /* one click selects the whole origin, ready to paste into the Cloud Console */
+}
+
+.mx_ClarivaAuth_toggle {
+    align-self: center;
+    min-height: 44px;
+    margin-top: var(--cpd-space-1x);
+    padding: 0 var(--cpd-space-4x);
+    border: 0;
+    border-radius: var(--cg-r-sm);
+    background: transparent;
+    color: var(--cg-text);
+    font-family: var(--cg-font-ui);
+    font-size: var(--cg-fs-md);
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover:not(:disabled) {
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+
+    &:disabled {
+        color: var(--cg-text-3);
+        cursor: not-allowed;
+    }
+}
+
+/* Privacy / Terms (config branding.auth_footer_links) and the version, when there is a real one */
+.mx_ClarivaAuth_footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--cpd-space-1x);
+    margin-top: var(--cpd-space-1x);
+    padding-top: var(--cpd-space-1x);
+    border-top: 1px solid var(--cg-line);
+}
+
+.mx_ClarivaAuth_legal {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0 var(--cpd-space-2x);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 0 var(--cpd-space-3x);
+        border-radius: var(--cg-r-sm);
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        text-decoration: none;
+        touch-action: manipulation;
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover {
+                color: var(--cg-text);
+                text-decoration: underline;
+                text-underline-offset: 3px;
+            }
+        }
+
+        &:focus-visible {
+            color: var(--cg-text);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            outline: 2px solid var(--cg-focus);
+            outline-offset: 2px;
+        }
+    }
+}
+
+.mx_ClarivaAuth_version {
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-sm);
+    padding-bottom: var(--cpd-space-1x);
+}
+
+/* ── dialogs (forgot password, role, deactivate, signed out, sign out) ─────────────────────────────── */
+
+.mx_ClarivaDialog_content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-4x);
+
+    p {
+        margin: 0;
+    }
+}
+
+/* a failure the user must read: an inset tile with a coral rail, coral-text and a glyph (never colour alone) */
+.mx_ClarivaAuth_dialogError {
+    @mixin cg-inset;
+    @mixin cg-error-glyph;
+
+    padding: var(--cpd-space-3x) var(--cpd-space-4x);
+    border-radius: var(--cg-r-md);
+    box-shadow:
+        var(--cg-edge-flat),
+        inset 3px 0 0 var(--cg-coral);
+    color: var(--cg-coral-text);
+    font-size: var(--cg-fs-md);
+    line-height: 1.45;
+    white-space: pre-line;
+}
+
+.mx_ClarivaAuth_dialogSuccess {
+    color: var(--cg-teal-text);
+    font-size: var(--cg-fs-md);
+    font-weight: 600;
+}
+
+/* a muted aside inside a dialog */
+.mx_ClarivaAuth_dialogHint {
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-sm);
+    line-height: 1.45;
+}
+
+/* a heads-up the user must read before continuing (e.g. "Continue creates a new account") */
+.mx_ClarivaAuth_dialogNotice {
+    @mixin cg-inset;
+
+    padding: var(--cpd-space-3x) var(--cpd-space-4x);
+    border-radius: var(--cg-r-md);
+    box-shadow:
+        var(--cg-edge-flat),
+        inset 3px 0 0 var(--cg-teal);
+    color: var(--cg-text);
+    font-size: var(--cg-fs-md);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.mx_ClarivaAuth_radioGroup {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-3x);
+}
+
+/* each option is a 56px+ inset tile; the checked one gets the teal edge (and the radio itself shows the state) */
+.mx_ClarivaAuth_radio {
+    @mixin cg-inset;
+
+    display: flex;
+    align-items: flex-start;
+    gap: var(--cpd-space-3x);
+    box-sizing: border-box;
+    min-height: 56px;
+    padding: var(--cpd-space-3x) var(--cpd-space-4x);
+    border-radius: var(--cg-r-md);
+    cursor: pointer;
+    touch-action: manipulation;
+
+    &:has(input:checked) {
+        box-shadow: inset 0 0 0 1.5px var(--cg-teal);
+    }
+
+    &:has(input:focus-visible) {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+
+    input {
+        flex: none;
+        width: 20px;
+        height: 20px;
+        margin: 2px 0 0;
+        accent-color: var(--cg-teal-deep);
+    }
+
+    > span {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+}
+
+.mx_ClarivaAuth_radioTitle {
+    color: var(--cg-text);
+    font-size: var(--cg-fs-lg);
+    font-weight: 500;
+}
+
+.mx_ClarivaAuth_radioHint {
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-sm);
+}
+
+/* deactivate dialog */
+.mx_ClarivaDeactivate_google {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-3x);
+}
+
+.mx_ClarivaDeactivate_list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-2x);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    li {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--cpd-space-2x);
+    }
+
+    svg {
+        flex: none;
+        width: 20px;
+        height: 20px;
+        fill: currentcolor;
+    }
+}
+
+.mx_ClarivaDeactivate_bad {
+    color: var(--cg-coral-text);
+}
+
+.mx_ClarivaDeactivate_good {
+    color: var(--cg-teal-text);
+}
+
+.mx_ClarivaDeactivate_warning {
+    @mixin cg-inset;
+
+    padding: var(--cpd-space-3x) var(--cpd-space-4x);
+    border-radius: var(--cg-r-md);
+    box-shadow:
+        var(--cg-edge-flat),
+        inset 3px 0 0 var(--cg-coral);
+    color: var(--cg-coral-text);
+    font-weight: 500;
+}
+
+/* signed-out dialog */
+.mx_ClarivaSignedOut_reasons {
+    margin: 0;
+    padding-inline-start: var(--cpd-space-5x);
+    color: var(--cg-text-2);
+}
+
+@media (max-width: 480px) {
+    .mx_ClarivaAuth_scroll {
+        padding-top: max(var(--cpd-space-4x), env(safe-area-inset-top));
+        padding-bottom: max(var(--cpd-space-4x), env(safe-area-inset-bottom));
+        padding-inline: max(var(--cpd-space-4x), env(safe-area-inset-left))
+            max(var(--cpd-space-4x), env(safe-area-inset-right));
+    }
+
+    .mx_ClarivaAuth_card {
+        padding: var(--cpd-space-6x) var(--cpd-space-5x) var(--cpd-space-2x);
+    }
+
+    .mx_ClarivaAuth_logoTile {
+        width: 64px;
+        height: 64px;
+        border-radius: 22px;
+    }
+
+    .mx_ClarivaAuth_logo {
+        width: 42px;
+        height: 34px;
+    }
+}

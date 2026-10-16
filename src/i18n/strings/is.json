@@ -15,10 +15,8 @@
         "app_launch_unexpected_error": "Óvænt villa við undirbúning forritsins. Sjá nánar á stjórnskjá.",
         "cannot_load_config": "Ekki er hægt að hlaða stillingaskrána: endurnýjaðu síðuna til að reyna aftur.",
         "invalid_configuration_no_server": "Ógild uppsetning: enginn sjálfgefinn vefþjónn tilgreindur.",
-        "invalid_json": "Element-stillingar þínar innihalda ógilt JSON. Leiðréttu vandamálið og endurlestu síðuna.",
         "invalid_json_detail": "Skilaboðið frá þáttaranum er %(message)s",
-        "invalid_json_generic": "Ógilt JSON",
-        "misconfigured": "Element-tilvikið þitt er rangt stillt"
+        "invalid_json_generic": "Ógilt JSON"
     },
     "incompatible_browser": {
         "title": "Óstuddur vafri"
@@ -26,6 +24,5 @@
     "powered_by_matrix": "Keyrt með Matrix",
     "powered_by_matrix_with_logo": "Dreifstýrt, dulritað spjall og samskipti keyrt með $matrixLogo",
     "unknown_device": "Óþekkt tæki",
-    "web_default_device_name": "%(appName)s: %(browserName)s á %(osName)s",
-    "welcome_to_element": "Velkomin í Element"
+    "web_default_device_name": "%(appName)s: %(browserName)s á %(osName)s"
 }

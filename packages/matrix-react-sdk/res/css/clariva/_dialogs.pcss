@@ -1,0 +1,1413 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Clariva overlays, "Clear Water" glass edition (docs/clariva/DESIGN-SYSTEM.md sections 3, 5 and 6): dialogs, the settings
+ * dialog, context menus, tooltips, toasts and the refund UI. Everything is scoped with `:root[data-clariva]` (set by
+ * src/clariva/rootMarker.ts when a Clariva API is configured), so stock Element Web is untouched without it.
+ *
+ * MATERIALS. A dialog, a menu, a tooltip and a toast are cg-glass-thick (one blurred layer each). Everything INSIDE a glass
+ * panel (buttons, fields, tiles, tabs) is an inset tile or a flat fill and never blurs (rule 1: no nested backdrop-filter),
+ * so the "glass-thin" secondary button of the brief is the inset pill here. The modal scrim is the only other blurred layer.
+ * A material never reads --cg-fill-* or a literal blur: the mixins do (and the accessibility fallbacks re-point them).
+ *
+ * TEXT. A dialog carries --cg-text, --cg-text-2 (Compound's text-secondary is re-pointed to it inside the dialog) and the
+ * accent texts; floating chrome (menus, tooltips, toasts) carries --cg-text only (rule 7).
+ *
+ * MOTION. Dialogs, menus and toasts enter with a CSS transition from an @starting-style (interruptible, compositor only:
+ * opacity + transform / scale). React unmounts a closed dialog in the same task, so there is no exit to animate without a
+ * change to Modal.tsx (reported as a request). prefers-reduced-motion is the blanket in _a11y.pcss: nothing is repeated here.
+ *
+ * SPECIFICITY. This partial is imported BEFORE the upstream partials, so a rule must out-rank upstream's. The dialog
+ * buttons are the extreme case (upstream selects them through a seven-class :not() chain, (0,7,4)): their selectors below
+ * repeat that chain behind `:root[data-clariva]`, which wins without !important. The only !important left are the ones
+ * that answer an upstream or Compound !important (disabled Compound buttons, destructive menu items, the settings title).
+ */
+
+/* ───────────────────────────── 0. shared pieces (also used by _auth, _wallet, _qr) ───────────────────────────── */
+
+/*
+ * Surface-local tints, declared on <body> like the derived tokens of _glass.pcss so the dark values are in scope.
+ * (REQUEST for the foundation: promote these to _brand.pcss; until then they live here.)
+ *   --cg-hover-tint  inset hover: a veil of the text colour (a menu item, a tab, a row)
+ *   --cg-press-tint  the same, pressed
+ *   --cg-field-edge  the 1px boundary of an input: >= 3:1 against the tile it bounds, in both themes
+ *   --cg-btn-edge    the teal specular rim of the primary pill
+ *   --cg-btn-hover   the primary pill, hovered (a step lighter than Ink Navy / a step brighter than mist)
+ */
+:root[data-clariva] body {
+    --cg-hover-tint: rgba(11, 31, 58, 0.07);
+    --cg-press-tint: rgba(11, 31, 58, 0.12);
+    --cg-field-edge: rgba(11, 31, 58, 0.5);
+    --cg-btn-edge: rgba(0, 184, 160, 0.7);
+    --cg-btn-hover: #17314f;
+}
+
+:root[data-clariva] body[class*="cpd-theme-dark"] {
+    --cg-hover-tint: rgba(234, 246, 244, 0.09);
+    --cg-press-tint: rgba(234, 246, 244, 0.14);
+    --cg-field-edge: rgba(234, 246, 244, 0.5);
+    --cg-btn-edge: rgba(47, 217, 193, 0.6);
+    --cg-btn-hover: #ffffff;
+}
+
+/* the shared pill: 44px, Inter 15/600, press scale (cg-press sets the transition; the colours ride --cg-transition-extra) */
+@define-mixin cg-btn-base {
+    @mixin cg-press;
+
+    --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out),
+        color var(--cg-dur-hover) var(--cg-ease-out), box-shadow var(--cg-dur-hover) var(--cg-ease-out);
+
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--cpd-space-2x);
+    min-height: 44px;
+    margin: 0;
+    padding: 0 var(--cpd-space-6x);
+    border: 0;
+    border-radius: var(--cg-r-pill);
+    font-family: var(--cg-font-ui);
+    font-size: var(--cg-fs-md);
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: 0;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* primary: an Ink Navy pill (a mist pill with navy text in the dark theme) with a 1px teal specular rim */
+@define-mixin cg-btn-primary {
+    @mixin cg-btn-base;
+
+    background: var(--cg-text);
+    color: var(--cg-bg);
+    box-shadow:
+        inset 0 0 0 1px var(--cg-btn-edge),
+        inset 0 1px 0 var(--cg-highlight),
+        var(--cg-e1);
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover:not(:disabled, [aria-disabled="true"], .mx_AccessibleButton_disabled) {
+            background: var(--cg-btn-hover);
+        }
+    }
+}
+
+/* secondary: an inset pill on the glass (the brief's "glass-thin", without a nested blur) */
+@define-mixin cg-btn-secondary {
+    @mixin cg-btn-base;
+    @mixin cg-inset;
+
+    color: var(--cg-text);
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover:not(:disabled, [aria-disabled="true"], .mx_AccessibleButton_disabled) {
+            background-image: linear-gradient(var(--cg-hover-tint), var(--cg-hover-tint));
+        }
+    }
+
+    &:active:not(:disabled, [aria-disabled="true"], .mx_AccessibleButton_disabled) {
+        background-image: linear-gradient(var(--cg-press-tint), var(--cg-press-tint));
+    }
+}
+
+/* destructive: a coral fill with white text (4.7:1) */
+@define-mixin cg-btn-danger {
+    @mixin cg-btn-base;
+
+    background: var(--cg-coral);
+    color: var(--cg-on-coral);
+    box-shadow:
+        inset 0 1px 0 var(--cg-highlight),
+        var(--cg-e1);
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover:not(:disabled, [aria-disabled="true"], .mx_AccessibleButton_disabled) {
+            filter: brightness(1.08);
+        }
+    }
+}
+
+/* disabled: a flat, quiet pill with --cg-text-3 text (!important answers Compound's own !important) */
+@define-mixin cg-btn-disabled {
+    background: var(--cg-line) !important;
+    background-image: none !important;
+    color: var(--cg-text-3) !important;
+    box-shadow: none !important;
+    filter: none;
+    opacity: 1;
+    cursor: not-allowed;
+}
+
+/* an input: an inset tile with a visible boundary and, on focus, the 2px ring (the row focuses as one) */
+@define-mixin cg-field {
+    @mixin cg-inset;
+
+    box-sizing: border-box;
+    min-height: 44px;
+    border-radius: var(--cg-r-md);
+    box-shadow: inset 0 0 0 1px var(--cg-field-edge);
+
+    &:focus-within {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+}
+
+/* the red-flag state of a field: a 2px coral edge (a message and an icon always accompany it) */
+@define-mixin cg-field-error {
+    box-shadow: inset 0 0 0 2px var(--cg-coral);
+}
+
+/* the glyph in front of an error line (the Compound "error" icon as a mask, in the error colour) */
+@define-mixin cg-error-glyph {
+    &::before {
+        content: "";
+        flex: none;
+        box-sizing: border-box;
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        margin-inline-end: var(--cpd-space-1-5x);
+        vertical-align: -3px;
+        background-color: currentcolor;
+        mask-image: url("@vector-im/compound-design-tokens/icons/error.svg");
+        mask-repeat: no-repeat;
+        mask-position: center;
+        mask-size: 16px;
+    }
+}
+
+/* a menu / tab / row: 44px, rounded, an inset veil on hover and a ring on keyboard focus */
+@define-mixin cg-menu-item {
+    box-sizing: border-box;
+    min-block-size: 44px;
+    border-radius: var(--cg-r-sm);
+    color: var(--cg-text);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background-color var(--cg-dur-hover) var(--cg-ease-out);
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover {
+            background-color: var(--cg-hover-tint);
+        }
+    }
+
+    &:focus-visible {
+        background-color: var(--cg-hover-tint);
+        outline: 2px solid var(--cg-focus);
+        outline-offset: -2px;
+    }
+
+    &:active {
+        background-color: var(--cg-press-tint);
+    }
+}
+
+/* ───────────────────────────── 1. scrim + dialog box ───────────────────────────── */
+
+/* (A) wrapper + scrim: the scrim token's alpha over a 6px blur of the page (the only other blurred layer of an overlay) */
+:root[data-clariva] .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner) {
+    /* keeps the dialog off the screen edge on small windows; invisible on desktop */
+    box-sizing: border-box;
+    padding: var(--cpd-space-4x);
+
+    > .mx_Dialog_background {
+        @mixin cg-scrim;
+    }
+
+    .mx_Dialog_border {
+        padding: 0;
+        outline: 0;
+        background: transparent;
+        box-shadow: none;
+        max-height: 100%;
+        max-height: min(100%, calc(100dvh - 2 * var(--cpd-space-4x)));
+    }
+}
+
+/*
+ * (B) the glass itself, on .mx_Dialog (the scrolling box), so its opacity / transform animate WITH its own backdrop-filter:
+ * an ancestor with opacity < 1 would be a backdrop root and the frost would pop in after the fade. 220 ms scale(.96) + fade.
+ */
+:root[data-clariva] .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner) .mx_Dialog_border > .mx_Dialog {
+    @mixin cg-glass-thick;
+
+    /* Compound's secondary text on this glass is the measured --cg-text-2 */
+    --cpd-color-text-secondary: var(--cg-text-2);
+
+    border-radius: var(--cg-r-xl);
+    color: var(--cg-text);
+    opacity: 1;
+    transform: none;
+    transition:
+        opacity 220ms var(--cg-ease-out),
+        transform 220ms var(--cg-ease-out);
+}
+
+@starting-style {
+    :root[data-clariva]
+        .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner)
+        .mx_Dialog_border
+        > .mx_Dialog {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+}
+
+/*
+ * (C) default content skin. The whole prefix is inside :where() (zero specificity), so a dialog that sizes or pads itself
+ * (spotlight, location view, integration manager, compound dialogs, ...) keeps winning exactly as upstream.
+ */
+:where(:root[data-clariva] .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner)) {
+    .mx_Dialog_border > .mx_Dialog {
+        padding: var(--cpd-space-6x); /* 24px */
+        max-width: 100%;
+    }
+
+    /* a stray fixed width must never push a dialog off a narrow screen */
+    .mx_Dialog > div {
+        max-width: 100%;
+    }
+
+    .mx_Dialog .mx_Dialog_header {
+        padding-inline-end: var(--cpd-space-12x); /* room for the close target */
+        margin-bottom: var(--cpd-space-4x);
+    }
+
+    /* the text under the title: the stock 24px / 68px margins leave a hole above the buttons */
+    .mx_Dialog .mx_Dialog_content {
+        margin: var(--cpd-space-4x) 0 var(--cpd-space-2x);
+    }
+}
+
+/* the title: Inter 20/600 (the display face is for the sign-in, empty and success moments only) */
+:root[data-clariva] .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner) .mx_Dialog {
+    .mx_Dialog_title {
+        color: var(--cg-text);
+        font-family: var(--cg-font-ui);
+        font-size: var(--cg-fs-xl);
+        font-weight: 600;
+        line-height: 1.25;
+        letter-spacing: -0.01em;
+        overflow-wrap: anywhere;
+
+        &.danger {
+            color: var(--cg-coral-text);
+        }
+    }
+
+    .mx_Dialog_content {
+        color: var(--cg-text);
+    }
+}
+
+/* the close button: an inset round (36px) with a visible X and a 44px hit area; it never blurs (it sits on the glass) */
+:root[data-clariva]
+    .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner)
+    .mx_Dialog
+    .mx_Dialog_cancelButton {
+    @mixin cg-inset;
+    @mixin cg-press;
+
+    --cg-transition-extra: background-color var(--cg-dur-hover) var(--cg-ease-out);
+
+    top: var(--cpd-space-4x);
+    right: var(--cpd-space-4x);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+
+    &::before {
+        width: 36px;
+        height: 36px;
+        mask-size: 20px;
+        background-color: var(--cg-text-2);
+    }
+
+    /* the hit area grows to 44px without growing the circle */
+    &::after {
+        content: "";
+        position: absolute;
+        inset: -4px;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover {
+            background-image: linear-gradient(var(--cg-hover-tint), var(--cg-hover-tint));
+        }
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+}
+
+@media (max-width: 768px) {
+    /* fixed-width dialogs (60vw) are far too narrow on a phone: use the screen minus gutter and padding */
+    :where(:root[data-clariva] .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner))
+        .mx_Dialog
+        .mx_Dialog_fixedWidth {
+        width: calc(100vw - 2 * var(--cpd-space-4x) - 2 * var(--cpd-space-6x));
+    }
+}
+
+/*
+ * (D) phones: a bottom sheet. Full width, 28px top corners, safe-area padding, a drag handle that is only a picture (the
+ * dialog does not drag). The spotlight palette keeps its own layout.
+ */
+@media (max-width: 600px) {
+    :root[data-clariva]
+        .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner):not(.mx_SpotlightDialog_wrapper) {
+        align-items: flex-end;
+        padding: 0;
+
+        .mx_Dialog_border {
+            width: 100%;
+            max-width: none;
+            max-height: 92%;
+            max-height: min(92%, 92dvh);
+
+            /* the handle */
+            &::before {
+                content: "";
+                position: absolute;
+                z-index: 1;
+                top: var(--cpd-space-2x);
+                inset-inline: 0;
+                width: 36px;
+                height: 4px;
+                margin-inline: auto;
+                border-radius: var(--cg-r-pill);
+                background: var(--cg-text-3);
+                opacity: 0.45;
+                pointer-events: none;
+            }
+
+            > .mx_Dialog {
+                width: 100%;
+                border-radius: var(--cg-r-xl) var(--cg-r-xl) 0 0;
+                padding-block-start: var(--cpd-space-8x);
+                padding-block-end: max(var(--cpd-space-6x), env(safe-area-inset-bottom));
+                padding-inline: max(var(--cpd-space-5x), env(safe-area-inset-left), env(safe-area-inset-right));
+                transition:
+                    opacity 220ms var(--cg-ease-out),
+                    transform 280ms var(--cg-ease-drawer);
+            }
+
+            > .mx_Dialog .mx_Dialog_cancelButton {
+                top: var(--cpd-space-5x);
+            }
+        }
+    }
+
+    @starting-style {
+        :root[data-clariva]
+            .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner):not(.mx_SpotlightDialog_wrapper)
+            .mx_Dialog_border
+            > .mx_Dialog {
+            opacity: 0;
+            transform: translate3d(0, 32px, 0);
+        }
+    }
+
+    /* fixed-width content fills the sheet */
+    :where(:root[data-clariva] .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner))
+        .mx_Dialog
+        .mx_Dialog_fixedWidth {
+        width: 100%;
+    }
+}
+
+/* ───────────────────────────── 2. dialog buttons ───────────────────────────── */
+
+/*
+ * DialogButtons renders [secondary][primary] inside .mx_Dialog_buttons_row (flex-end): secondary on the left, primary on the
+ * right on desktop. On phones the row becomes a full-width column with the primary action on top (column-reverse).
+ */
+:root[data-clariva] .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner) .mx_Dialog_buttons {
+    margin-top: var(--cpd-space-6x);
+
+    .mx_Dialog_buttons_row {
+        --buttons-dialog-gap-column: var(--cpd-space-3x);
+        --buttons-dialog-gap-row: var(--cpd-space-3x);
+
+        align-items: center;
+    }
+}
+
+/*
+ * The legacy dialog button (DialogButtons, any <button> in a dialog that is not marked mx_Dialog_nonDialogButton). Upstream
+ * styles it through one :not() chain of specificity (0,7,4); this repeats the chain behind the root marker, so it wins
+ * (0,10,4) with no !important. Plain = secondary (inset pill); .mx_Dialog_primary = Ink Navy pill; .danger = coral.
+ */
+:root[data-clariva]
+    .mx_Dialog
+    :is(button, input[type="submit"]):not(.mx_Dialog_nonDialogButton):not([class|="maplibregl"]):not(
+        .mx_AccessibleButton
+    ):not(.mx_UserProfileSettings button):not(.mx_ThemeChoicePanel_CustomTheme button):not(.mx_UnpinAllDialog button) {
+    &:not(.mx_Dialog_primary, .danger, .warning) {
+        @mixin cg-btn-secondary;
+
+        border: 0;
+        font-weight: 600;
+    }
+
+    &.mx_Dialog_primary {
+        @mixin cg-btn-primary;
+
+        min-width: 0;
+    }
+
+    &.danger {
+        @mixin cg-btn-danger;
+
+        border: 0;
+    }
+
+    /* "warning" stays a secondary pill, with coral text (4.6:1 on the inset tile) */
+    &.warning {
+        @mixin cg-btn-secondary;
+
+        border: 0;
+        color: var(--cg-coral-text);
+    }
+
+    &:disabled {
+        @mixin cg-btn-disabled;
+    }
+
+    &:focus {
+        filter: none;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+}
+
+/* Compound <Button> inside a dialog, a toast, the sign-in page and the refund banner: the same three pills */
+:root[data-clariva]
+    :is(.mx_Dialog, .mx_Toast_toast, .mx_ClarivaAuth, .mx_ClarivaRefundBanner)
+    button[data-kind="primary"]:not([class*="_destructive_"]) {
+    @mixin cg-btn-primary;
+
+    &[aria-disabled="true"] {
+        @mixin cg-btn-disabled;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+
+    /* the label never shrinks the pill below its 44px */
+    &[data-size="sm"] {
+        min-block-size: 44px;
+        padding-inline: var(--cpd-space-5x);
+    }
+}
+
+:root[data-clariva]
+    :is(.mx_Dialog, .mx_Toast_toast, .mx_ClarivaAuth, .mx_ClarivaRefundBanner)
+    button[data-kind="primary"][class*="_destructive_"] {
+    @mixin cg-btn-danger;
+
+    &[aria-disabled="true"] {
+        @mixin cg-btn-disabled;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+}
+
+:root[data-clariva]
+    :is(.mx_Dialog, .mx_Toast_toast, .mx_ClarivaAuth, .mx_ClarivaRefundBanner)
+    button[data-kind="secondary"] {
+    @mixin cg-btn-secondary;
+
+    &[class*="_destructive_"] {
+        color: var(--cg-coral-text);
+        box-shadow: inset 0 0 0 1px var(--cg-coral);
+    }
+
+    &[aria-disabled="true"] {
+        @mixin cg-btn-disabled;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+
+    &[data-size="sm"] {
+        min-block-size: 44px;
+        padding-inline: var(--cpd-space-5x);
+    }
+}
+
+/* AccessibleButton with a kind (settings rows, toasts, the QR dialogs) */
+:root[data-clariva]
+    :is(.mx_Dialog, .mx_Toast_toast, .mx_ClarivaAuth, .mx_ClarivaRefundBanner)
+    .mx_AccessibleButton.mx_AccessibleButton_hasKind {
+    &:is(.mx_AccessibleButton_kind_primary, .mx_AccessibleButton_kind_primary_sm) {
+        @mixin cg-btn-primary;
+    }
+
+    &:is(.mx_AccessibleButton_kind_danger, .mx_AccessibleButton_kind_danger_sm) {
+        @mixin cg-btn-danger;
+    }
+
+    &:is(.mx_AccessibleButton_kind_primary_outline, .mx_AccessibleButton_kind_secondary_content) {
+        @mixin cg-btn-secondary;
+
+        text-decoration: none;
+    }
+
+    &.mx_AccessibleButton_kind_danger_outline {
+        @mixin cg-btn-secondary;
+
+        color: var(--cg-coral-text);
+        box-shadow: inset 0 0 0 1px var(--cg-coral);
+    }
+
+    &:is(
+            .mx_AccessibleButton_kind_link,
+            .mx_AccessibleButton_kind_link_sm,
+            .mx_AccessibleButton_kind_link_inline,
+            .mx_AccessibleButton_kind_link_accent
+        ) {
+        color: var(--cg-teal-text);
+        font-weight: 600;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+    }
+
+    &.mx_AccessibleButton_disabled:not(.mx_AccessibleButton_kind_link, .mx_AccessibleButton_kind_link_inline) {
+        @mixin cg-btn-disabled;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--cg-focus);
+        outline-offset: 2px;
+    }
+}
+
+@media (max-width: 600px) {
+    :root[data-clariva] .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner) .mx_Dialog_buttons {
+        margin-top: var(--cpd-space-5x);
+
+        .mx_Dialog_buttons_row {
+            flex-direction: column-reverse; /* DOM order is [secondary][primary]: primary ends up on top */
+            align-items: stretch;
+            margin-inline-start: 0;
+        }
+
+        .mx_Dialog_buttons_additive {
+            float: none;
+            margin-bottom: var(--cpd-space-3x);
+        }
+
+        /* a full-width pill, 48px tall */
+        .mx_Dialog_buttons_row :is(button, input[type="submit"]) {
+            min-height: var(--cpd-space-12x);
+        }
+    }
+}
+
+/* ───────────────────────────── 3. fields inside dialogs ───────────────────────────── */
+
+/* Compound TextControl (display name, rename, ...): an inset tile, 16px radius, visible edge, Compound's own 2px ring */
+:root[data-clariva] .mx_Dialog :is(input, textarea)[class*="_control_"] {
+    box-sizing: border-box;
+    min-height: 44px;
+    border: 1px solid var(--cg-field-edge);
+    border-radius: var(--cg-r-md);
+    background: var(--cg-surface-inset);
+    color: var(--cg-text);
+
+    &::placeholder {
+        color: var(--cg-text-3);
+    }
+
+    &[data-invalid] {
+        border-color: var(--cg-coral);
+        border-width: 2px;
+    }
+
+    &:disabled {
+        background: var(--cg-line);
+        color: var(--cg-text-3);
+    }
+}
+
+/* Element's floating-label field keeps its opaque tile (the label notch needs it); only the shape and colours change */
+:root[data-clariva] .mx_Dialog .mx_Field {
+    border-color: var(--cg-field-edge);
+    border-radius: var(--cg-r-sm);
+
+    input,
+    select,
+    textarea {
+        border-radius: var(--cg-r-sm);
+        color: var(--cg-text);
+    }
+
+    label {
+        color: var(--cg-text-2);
+    }
+
+    &:focus-within {
+        border-color: var(--cg-focus);
+    }
+}
+
+/*
+ * A copyable value in a dialog (Settings > Account username, the share dialogs): the same inset tile as a field instead of
+ * the stock 5px outlined box, with a 44px copy target whose opaque patch (it hides text scrolling under it) is gone.
+ */
+:root[data-clariva] .mx_Dialog .mx_CopyableText.mx_CopyableText_border {
+    @mixin cg-inset;
+
+    box-sizing: border-box;
+    align-items: center;
+    min-height: 44px;
+    padding: var(--cpd-space-1x) 0 var(--cpd-space-1x) var(--cpd-space-4x);
+    border: 0;
+    border-radius: var(--cg-r-md);
+    box-shadow: inset 0 0 0 1px var(--cg-field-edge);
+    color: var(--cg-text);
+    overflow-wrap: anywhere;
+
+    .mx_CopyableText_copyButton {
+        position: static;
+        box-sizing: border-box;
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border-radius: 50%;
+        background-color: transparent;
+        touch-action: manipulation;
+        transition: background-color var(--cg-dur-hover) var(--cg-ease-out);
+
+        &::before {
+            width: 20px;
+            height: 20px;
+            background-color: var(--cg-text-2);
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover {
+                background-color: var(--cg-hover-tint);
+            }
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--cg-focus);
+            outline-offset: -2px;
+        }
+    }
+}
+
+/* ───────────────────────────── 4. settings dialog: desktop ───────────────────────────── */
+
+:root[data-clariva] .mx_UserSettingsDialog {
+    height: 80vh;
+    height: min(80dvh, 760px);
+
+    /* smaller title: the tab name is the strong part */
+    .mx_UserSettingsDialog_title {
+        font: var(--cpd-font-heading-sm-regular) !important; /* upstream uses !important here too */
+        letter-spacing: var(--cpd-font-letter-spacing-heading-sm);
+
+        .mx_UserSettingsDialog_title_strong {
+            font: var(--cpd-font-heading-sm-semibold);
+        }
+    }
+
+    /* the tab list lines up with the title (the dialog padding): a glass sidebar of inset tab tiles */
+    .mx_TabbedView {
+        top: var(--cpd-space-16x);
+        padding-left: var(--cpd-space-6x);
+    }
+
+    .mx_TabbedView_tabLabel {
+        min-block-size: 44px;
+        min-inline-size: 44px;
+        border-radius: var(--cg-r-sm);
+        color: var(--cg-text-2);
+        cursor: pointer;
+        touch-action: manipulation;
+        transition:
+            color var(--cg-dur-hover) var(--cg-ease-out),
+            background-color var(--cg-dur-hover) var(--cg-ease-out),
+            box-shadow var(--cg-dur-hover) var(--cg-ease-out);
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover:not(.mx_TabbedView_tabLabel_active) {
+                background-color: var(--cg-hover-tint);
+                color: var(--cg-text);
+            }
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--cg-focus);
+            outline-offset: -2px;
+        }
+
+        .mx_TabbedView_maskedIcon::before {
+            background-color: currentcolor;
+        }
+    }
+
+    /* the selected tab: an inset tile with a teal edge, a teal-text label and a teal icon (never colour alone: weight too) */
+    .mx_TabbedView_tabsOnLeft .mx_TabbedView_tabLabel_active {
+        background-color: var(--cg-hover-tint);
+        box-shadow: inset 0 0 0 1.5px var(--cg-teal);
+        color: var(--cg-teal-text);
+        font: var(--cpd-font-body-md-semibold);
+
+        &::before {
+            display: none;
+        }
+
+        svg {
+            color: var(--cg-teal-text);
+        }
+
+        .mx_TabbedView_maskedIcon::before {
+            background-color: var(--cg-teal-text);
+        }
+    }
+
+    /* the content area is the dialog's own thick glass: type colours come from the dialog */
+    .mx_TabbedView_tabPanel {
+        color: var(--cg-text);
+    }
+}
+
+/* tablets (769-1024px): the tab list is icons only, and the 44px targets need a little more room than the stock 72px */
+@media (min-width: 769px) and (max-width: 1024px) {
+    :root[data-clariva]
+        .mx_UserSettingsDialog
+        .mx_TabbedView_tabsOnLeft.mx_TabbedView_responsive
+        .mx_TabbedView_tabPanel {
+        margin-left: calc(var(--cpd-space-6x) + 44px + var(--cpd-space-4x));
+    }
+}
+
+/* ───────────────────────────── 5. settings dialog: phones (full screen, scrollable tab bar) ───────────────────────────── */
+
+@media (max-width: 768px) {
+    /* a settings dialog is a screen on a phone, not a card or a sheet (needs :has(); without it the sheet stays) */
+    :root[data-clariva]
+        .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner):has(.mx_UserSettingsDialog) {
+        align-items: center;
+        padding: 0;
+    }
+
+    :root[data-clariva]
+        .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner)
+        .mx_Dialog_border:has(.mx_UserSettingsDialog) {
+        --clariva-pad-t: max(var(--cpd-space-4x), env(safe-area-inset-top));
+        --clariva-pad-b: max(var(--cpd-space-4x), env(safe-area-inset-bottom));
+        --clariva-pad-x: max(var(--cpd-space-4x), env(safe-area-inset-left), env(safe-area-inset-right));
+
+        width: 100%;
+        max-width: none;
+        max-height: 100%;
+        max-height: 100dvh;
+
+        /* a full-screen page has no drag handle */
+        &::before {
+            display: none;
+        }
+
+        > .mx_Dialog {
+            border-radius: 0;
+            padding: var(--clariva-pad-t) var(--clariva-pad-x) var(--clariva-pad-b);
+        }
+    }
+
+    @starting-style {
+        :root[data-clariva]
+            .mx_Dialog_wrapper:not(.mx_Dialog_lightbox):not(.mx_Dialog_spinner)
+            .mx_Dialog_border:has(.mx_UserSettingsDialog)
+            > .mx_Dialog {
+            opacity: 0;
+            transform: none;
+        }
+    }
+
+    :root[data-clariva] .mx_UserSettingsDialog {
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        width: calc(100vw - 2 * var(--clariva-pad-x, 16px));
+        max-width: none;
+        height: calc(100vh - var(--clariva-pad-t, 16px) - var(--clariva-pad-b, 16px));
+        height: calc(100dvh - var(--clariva-pad-t, 16px) - var(--clariva-pad-b, 16px));
+
+        .mx_Dialog_header {
+            flex: none;
+            margin-bottom: var(--cpd-space-2x);
+            padding-inline-end: var(--cpd-space-12x); /* the close target stays reachable */
+        }
+
+        /* the close button follows the safe-area padding (a notch / status bar must not cover it) */
+        .mx_Dialog_cancelButton {
+            top: var(--clariva-pad-t, 16px);
+            right: var(--clariva-pad-x, 16px);
+        }
+
+        .mx_SettingsDialog_content {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mx_TabbedView {
+            position: static;
+            inset: auto;
+            top: auto;
+            flex: 1;
+            min-height: 0;
+            margin: 0;
+            padding: 0;
+            flex-direction: column;
+        }
+
+        /* the vertical tab list becomes a horizontally scrolling bar of pills (labels always visible) */
+        .mx_TabbedView_tabLabels {
+            position: static;
+            display: flex;
+            flex: none;
+            flex-direction: row;
+            gap: var(--cpd-space-2x);
+            width: auto;
+            max-width: none;
+            margin: 0 calc(-1 * var(--clariva-pad-x, 16px)); /* bleed to the screen edges while scrolling */
+            padding: var(--cpd-space-1x) var(--clariva-pad-x, 16px) var(--cpd-space-3x);
+            overflow-x: auto;
+            overscroll-behavior-x: contain;
+            scroll-snap-type: x proximity;
+            scrollbar-width: none;
+
+            &::-webkit-scrollbar {
+                display: none;
+            }
+        }
+
+        .mx_TabbedView_tabLabel {
+            flex: none;
+            scroll-snap-align: start;
+            padding-inline: var(--cpd-space-3x) var(--cpd-space-4x);
+            border-radius: var(--cg-r-pill);
+            background-color: var(--cg-surface-inset);
+            box-shadow: var(--cg-edge-flat);
+            white-space: nowrap;
+            user-select: none;
+
+            svg {
+                margin-right: var(--cpd-space-2x);
+            }
+        }
+
+        /* the selected pill: the same teal edge as the desktop tile, on the inset fill */
+        .mx_TabbedView_tabLabel_active {
+            box-shadow: inset 0 0 0 1.5px var(--cg-teal);
+            color: var(--cg-teal-text);
+
+            &::before {
+                display: none;
+            }
+
+            svg {
+                color: var(--cg-teal-text);
+            }
+        }
+
+        /* beat the "icons only below 1024px" rules of the responsive TabbedView */
+        .mx_TabbedView_tabsOnLeft.mx_TabbedView_responsive {
+            .mx_TabbedView_tabLabel_text {
+                display: inline;
+            }
+
+            .mx_TabbedView_tabLabel {
+                padding-inline: var(--cpd-space-3x) var(--cpd-space-4x);
+                justify-content: flex-start;
+            }
+
+            .mx_TabbedView_tabLabel svg {
+                margin-right: var(--cpd-space-2x);
+            }
+
+            .mx_TabbedView_tabLabels {
+                width: auto;
+            }
+
+            .mx_TabbedView_tabPanel {
+                flex: 1;
+                min-height: 0;
+                margin-left: 0;
+            }
+        }
+
+        .mx_TabbedView_tabsOnLeft .mx_TabbedView_tabPanel {
+            flex: 1;
+            min-height: 0;
+            margin-left: 0;
+        }
+
+        .mx_TabbedView .mx_SettingsTab {
+            min-width: 0;
+            padding-right: 0;
+            padding-bottom: var(--cpd-space-6x);
+        }
+
+        .mx_SettingsDialog_toastContainer {
+            bottom: calc(var(--cpd-space-4x) + env(safe-area-inset-bottom));
+            padding-inline: var(--cpd-space-4x);
+            box-sizing: border-box;
+        }
+    }
+}
+
+/* ───────────────────────────── 6. menus and popovers ───────────────────────────── */
+
+/*
+ * The context menu / popover: thick glass, scale .96 -> 1 + fade in 180 ms from the trigger. ContextualMenu positions
+ * itself with `transform: translate(-100%)` when it is right / bottom aligned, so the grow uses the individual `scale`
+ * property (it composes with that transform instead of replacing it). `transform-origin` follows the alignment classes.
+ */
+:root[data-clariva] .mx_ContextualMenu {
+    @mixin cg-glass-thick;
+
+    --cpd-color-text-secondary: var(--cg-text-2);
+
+    border: 0;
+    border-radius: var(--cg-r-md);
+    color: var(--cg-text);
+    opacity: 1;
+    scale: 1;
+    transform-origin: top left;
+    transition:
+        opacity var(--cg-dur-small) var(--cg-ease-out),
+        scale var(--cg-dur-small) var(--cg-ease-out);
+
+    &.mx_ContextualMenu_rightAligned {
+        transform-origin: top right;
+    }
+
+    &.mx_ContextualMenu_bottomAligned {
+        transform-origin: bottom left;
+    }
+
+    &.mx_ContextualMenu_rightAligned.mx_ContextualMenu_bottomAligned {
+        transform-origin: bottom right;
+    }
+
+    &.mx_ContextualMenu_withChevron_left {
+        transform-origin: left center;
+    }
+
+    &.mx_ContextualMenu_withChevron_right {
+        transform-origin: right center;
+    }
+
+    &.mx_ContextualMenu_withChevron_top {
+        transform-origin: top center;
+    }
+
+    &.mx_ContextualMenu_withChevron_bottom {
+        transform-origin: bottom center;
+    }
+}
+
+@starting-style {
+    :root[data-clariva] .mx_ContextualMenu {
+        opacity: 0;
+        scale: 0.96;
+    }
+}
+
+/* the old triangle chevrons were cut for a flat panel; they do not belong on glass */
+:root[data-clariva] [class*="mx_ContextualMenu_chevron_"] {
+    display: none;
+}
+
+/* a "red" menu item keeps --cg-text (floating chrome carries only that, rule 7); its glyph is the coral cue */
+:root[data-clariva] .mx_IconizedContextMenu {
+    min-width: 200px;
+    padding: var(--cpd-space-1-5x);
+
+    .mx_IconizedContextMenu_optionList {
+        /* hairline dividers between groups, with a little air */
+        &:nth-child(n + 2),
+        .mx_IconizedContextMenu_optionList_notFirst {
+            margin-top: var(--cpd-space-1x);
+            padding-top: var(--cpd-space-1x);
+            border-top: 1px solid var(--cg-line);
+        }
+
+        > * {
+            padding-inline: 0;
+        }
+
+        .mx_IconizedContextMenu_optionList_label {
+            padding-inline: var(--cpd-space-3x);
+            color: var(--cg-text);
+        }
+
+        /* doubled class: out-ranks the first / last-child corner rules upstream */
+        .mx_IconizedContextMenu_item.mx_IconizedContextMenu_item {
+            @mixin cg-menu-item;
+
+            padding: var(--cpd-space-2-5x) var(--cpd-space-3x);
+            border-radius: var(--cg-r-sm);
+
+            .mx_IconizedContextMenu_icon + .mx_IconizedContextMenu_label {
+                padding-left: var(--cpd-space-3x);
+            }
+
+            &.mx_AccessibleButton_disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+        }
+    }
+
+    .mx_IconizedContextMenu_icon::before {
+        background-color: var(--cg-text-2);
+    }
+
+    .mx_IconizedContextMenu_optionList_red,
+    .mx_IconizedContextMenu_option_red {
+        .mx_IconizedContextMenu_item {
+            color: var(--cg-text) !important; /* upstream uses !important */
+        }
+
+        .mx_IconizedContextMenu_icon::before {
+            background-color: var(--cg-coral-text);
+        }
+    }
+
+    .mx_IconizedContextMenu_active {
+        &.mx_IconizedContextMenu_item,
+        .mx_IconizedContextMenu_item {
+            color: var(--cg-teal-text) !important; /* upstream uses !important */
+        }
+
+        .mx_IconizedContextMenu_icon::before {
+            background-color: var(--cg-teal-text);
+        }
+    }
+}
+
+/*
+ * Compound's <Menu> (a portal of its own, not inside .mx_ContextualMenu): the same glass. Compound draws the border as an
+ * !important outline and gives every item an opaque canvas fill, so both are answered here (marked !important).
+ */
+:root[data-clariva] [role="menu"][class*="_menu_"] {
+    @mixin cg-glass-thick;
+
+    --cpd-color-text-secondary: var(--cg-text-2);
+
+    padding-block: var(--cpd-space-2x);
+    padding-inline: var(--cpd-space-2x);
+    border-radius: var(--cg-r-md);
+    color: var(--cg-text);
+    outline: 0 !important; /* Compound's is !important */
+
+    [class*="_title_"] {
+        color: var(--cg-text);
+    }
+
+    [role="menuitem"],
+    [role="menuitemradio"],
+    [role="menuitemcheckbox"] {
+        @mixin cg-menu-item;
+
+        min-inline-size: 200px;
+        background: transparent;
+        color: var(--cg-text);
+    }
+}
+
+/* the user menu (avatar popup) */
+:root[data-clariva] .mx_IconizedContextMenu.mx_UserMenu_contextMenu {
+    width: 280px;
+    max-width: calc(100vw - 2 * var(--cpd-space-4x));
+
+    .mx_IconizedContextMenu_item {
+        img,
+        .mx_IconizedContextMenu_icon {
+            width: 20px;
+            min-width: 20px;
+            max-width: 20px;
+        }
+    }
+
+    .mx_IconizedContextMenu_icon {
+        width: 20px;
+        height: 20px;
+
+        &::before {
+            width: 20px;
+            height: 20px;
+        }
+    }
+
+    .mx_UserMenu_contextMenu_header {
+        padding: var(--cpd-space-4x) var(--cpd-space-4x) var(--cpd-space-3x);
+
+        .mx_UserMenu_contextMenu_name {
+            width: calc(100% - 44px - var(--cpd-space-2x));
+        }
+
+        .mx_UserMenu_contextMenu_themeButton {
+            @mixin cg-inset;
+
+            min-width: 44px;
+            max-width: 44px;
+            width: 44px;
+            height: 44px;
+            border-radius: var(--cg-r-pill);
+
+            &:focus-visible {
+                outline: 2px solid var(--cg-focus);
+                outline-offset: 2px;
+            }
+        }
+    }
+}
+
+/* ───────────────────────────── 7. tooltips ───────────────────────────── */
+
+/* Compound's tooltip (role="tooltip") and Element's own (.mx_Tooltip): a small thick-glass lens, --cg-text only */
+:root[data-clariva] [role="tooltip"],
+:root[data-clariva] .mx_Tooltip {
+    @mixin cg-glass-thick;
+
+    box-sizing: border-box;
+    border: 0;
+    border-radius: var(--cg-r-sm);
+
+    /* a hint is not a dialog: the lift of a card, not the 64px shadow of a sheet */
+    box-shadow: var(--cg-edge), var(--cg-e2);
+    padding: var(--cpd-space-2x) var(--cpd-space-3x);
+    color: var(--cg-text);
+    font-family: var(--cg-font-ui);
+    font-size: var(--cg-fs-sm);
+    font-weight: 500;
+    line-height: 1.35;
+
+    /* it fades and grows from .96 in 160 ms (they appear tens of times a day, so nothing slower); the individual `scale`
+       property composes with the `transform: translate()` the positioning engine sets. Compound's has no state of its own;
+       Element's toggles `display`, which an @starting-style transitions from as well */
+    transform-origin: center;
+    transition:
+        opacity var(--cg-dur-hover) var(--cg-ease-out),
+        scale var(--cg-dur-hover) var(--cg-ease-out);
+
+    /* the arrow was cut with the dark pill: a glass lens has none */
+    > svg[aria-hidden="true"] {
+        display: none;
+    }
+}
+
+@starting-style {
+    :root[data-clariva] [role="tooltip"],
+    :root[data-clariva] .mx_Tooltip {
+        opacity: 0;
+        scale: 0.96;
+    }
+}
+
+/* the secondary line of a rich tooltip */
+:root[data-clariva] [role="tooltip"] [class*="_caption_"],
+:root[data-clariva] .mx_Tooltip .mx_Tooltip_sub {
+    color: var(--cg-text);
+    opacity: 1;
+}
+
+/* ───────────────────────────── 8. toasts ───────────────────────────── */
+
+/*
+ * One thick-glass card, top-left on desktop (beside the space rail) and top-centre on phones. The priority / stack logic
+ * is ToastContainer's own; the stacked pseudo-card behind the front toast is the same material. Toasts float over the app,
+ * so everything in them is --cg-text (rule 7); the call ring toast (.mx_ClarivaIncomingCall) is styled by _calls.pcss.
+ */
+:root[data-clariva] .mx_ToastContainer {
+    padding: var(--cpd-space-3x);
+
+    .mx_Toast_toast {
+        @mixin cg-glass-thick;
+
+        padding: var(--cpd-space-4x);
+        border: 0;
+        border-radius: var(--cg-r-lg);
+        color: var(--cg-text);
+        opacity: 1;
+        transform: none;
+        transition:
+            opacity var(--cg-dur-medium) var(--cg-ease-out),
+            transform var(--cg-dur-medium) var(--cg-ease-out);
+
+        .mx_Toast_title h2 {
+            color: var(--cg-text);
+            font-family: var(--cg-font-ui);
+            font-size: var(--cg-fs-lg);
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        .mx_Toast_title_countIndicator {
+            color: var(--cg-text);
+        }
+
+        .mx_Toast_description {
+            margin: var(--cpd-space-1x) 0 var(--cpd-space-3x);
+            color: var(--cg-text);
+            font-family: var(--cg-font-ui);
+            font-size: var(--cg-fs-md);
+            line-height: 1.45;
+        }
+
+        .mx_Toast_buttons {
+            gap: var(--cpd-space-2x);
+
+            .mx_AccessibleButton {
+                min-height: 44px;
+            }
+        }
+
+        a {
+            color: var(--cg-text);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+    }
+
+    &.mx_ToastContainer_stacked::before {
+        @mixin cg-glass-thick;
+
+        border-radius: var(--cg-r-lg);
+    }
+}
+
+@starting-style {
+    :root[data-clariva] .mx_ToastContainer .mx_Toast_toast {
+        opacity: 0;
+        transform: translate3d(0, -8px, 0);
+    }
+}
+
+@media (max-width: 768px) {
+    /* the stock container is pinned 70px from the left (beside the space panel): centre it instead */
+    :root[data-clariva] .mx_ToastContainer {
+        left: 0;
+        right: 0;
+        box-sizing: border-box;
+        padding: calc(var(--cpd-space-2x) + env(safe-area-inset-top)) var(--cpd-space-4x) var(--cpd-space-2x);
+        justify-items: center;
+        justify-content: center;
+        grid-template-columns: minmax(0, 420px);
+
+        .mx_Toast_toast {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .mx_Toast_description {
+            max-width: none;
+        }
+    }
+}
+
+/* ───────────────────────────── 9. refund UI (pill and approve dialog; the banner and chat toasts are _chat.pcss) ───────────────────────────── */
+
+/*
+ * The refund components live in src/clariva/components/refund. Who owns what: the consultant banner and the chat-local
+ * toasts belong to the ROOM (they hang under the floating header and over the timeline), so their layout and material are
+ * _chat.pcss's, declared once (the buttons inside the banner are still the pills of section 2 above); this file owns the
+ * list pill and the approve DIALOG. Pill colours are the allowed pairs only: coral-text on an inset tile (4.6:1), amber-text
+ * on the amber wash (4.7:1).
+ */
+
+/* chat list: the "Refund" pill, an inset tag with a coral edge (the icon and the word carry it, never colour alone) */
+:root[data-clariva] .mx_ClarivaRefundPill {
+    @mixin cg-inset;
+
+    box-shadow: inset 0 0 0 1px var(--cg-coral);
+    color: var(--cg-coral-text);
+    font-family: var(--cg-font-ui);
+    font-weight: 600;
+
+    .mx_ClarivaRefundPill_icon {
+        color: var(--cg-coral-text);
+    }
+}
+
+/* "Approve refund" dialog: the field is an inset tile, the helper is --cg-text-2, the error is coral-text + a glyph */
+:root[data-clariva] .mx_ClarivaApproveRefundDialog {
+    .mx_ClarivaApproveRefund_label {
+        color: var(--cg-text);
+        font-weight: 600;
+    }
+
+    .mx_ClarivaApproveRefund_input {
+        @mixin cg-inset;
+
+        min-height: 44px;
+        border: 0;
+        border-radius: var(--cg-r-md);
+        box-shadow: inset 0 0 0 1px var(--cg-field-edge);
+        color: var(--cg-text);
+
+        &:focus-visible {
+            outline: 2px solid var(--cg-focus);
+            outline-offset: 2px;
+        }
+
+        &.mx_ClarivaApproveRefund_input_error {
+            @mixin cg-field-error;
+        }
+    }
+
+    .mx_ClarivaApproveRefund_support {
+        color: var(--cg-text-2);
+
+        &.mx_ClarivaApproveRefund_support_error {
+            @mixin cg-error-glyph;
+
+            color: var(--cg-coral-text);
+            font-weight: 600;
+        }
+    }
+}
+
+/* the approve / reject confirmation reuses the dialog skin above; its buttons are the pills of section 2 */
