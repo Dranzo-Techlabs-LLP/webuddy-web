@@ -1,0 +1,111 @@
+# Clariva Web - Apache / LiteSpeed configuration for cPanel shared hosting.
+# Equivalent to nginx/conf.d/default.conf (see docs/clariva/DEPLOY.md and docs/clariva/DEPLOY-CPANEL.md).
+# Place it in the document root next to index.html. Use a DEDICATED (sub)domain: this file applies to every sub-folder below it.
+# Needs mod_rewrite, mod_headers, mod_mime, mod_dir and (optionally) mod_deflate: all standard on cPanel.
+
+Options -Indexes
+DirectoryIndex index.html
+ServerSignature Off
+
+# Never serve .htaccess / .htpasswd. Apache's stock config already denies them; this keeps it true on a host that dropped that default.
+<FilesMatch "^\.ht">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# --- Force HTTPS (camera / microphone / crypto / Google sign-in all need a secure context) -----------------------------
+# Install the SSL certificate first (cPanel > SSL/TLS Status > Run AutoSSL), otherwise visitors get a certificate error.
+# The ACME / AutoSSL validation paths are left alone so certificate issue and renewal keep working. A TLS-terminating front
+# proxy (Cloudflare, ea-nginx) is recognised through X-Forwarded-Proto (any value starting with "https").
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_URI} !^/\.well-known/(acme-challenge|pki-validation|cpanel-dcv)/
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !^https [NC]
+    # %1 = the RAW request target (still percent-encoded, query string intact); NE keeps it byte-exact
+    RewriteCond %{THE_REQUEST} ^[A-Z]+\s(/\S*)\sHTTP/
+    RewriteRule ^ https://%{HTTP_HOST}%1 [R=301,NE,L]
+    # fallback for an absolute-form request line (only proxies send those)
+    RewriteCond %{REQUEST_URI} !^/\.well-known/(acme-challenge|pki-validation|cpanel-dcv)/
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !^https [NC]
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>
+
+# --- MIME types ---------------------------------------------------------------------------------------------------------
+<IfModule mod_mime.c>
+    AddType application/wasm .wasm
+    AddType text/javascript .js .mjs
+    AddType application/manifest+json .webmanifest
+</IfModule>
+
+# --- Compression --------------------------------------------------------------------------------------------------------
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json application/manifest+json application/wasm image/svg+xml
+</IfModule>
+
+<IfModule mod_headers.c>
+    # mod_deflate suffixes the ETag with "-gzip"; browsers send it back in If-None-Match and Apache would not recognise it, so
+    # every revalidation of a no-cache file (index.html, config.json, sw.js ...) would be a full 200 instead of a 304.
+    RequestHeader edit "If-None-Match" '^"(.*)-gzip"$' '"$1"'
+
+    # --- Security headers (same as nginx) -------------------------------------------------------------------------------
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    # strict-origin-when-cross-origin, NOT no-referrer: Google Identity Services and Razorpay need the origin in the Referer.
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    # The page CSP is the <meta> tag in index.html; frame-ancestors cannot be set from a meta tag.
+    Header always set Content-Security-Policy "frame-ancestors 'self'"
+    # Never add "Cross-Origin-Opener-Policy: same-origin" here: it breaks the Google sign-in popup.
+    # HSTS: enable once HTTPS is confirmed working on the final domain (it is sticky in browsers).
+    # Header always set Strict-Transport-Security "max-age=31536000"
+
+    # --- Cache policy (equivalent to the nginx map) ---------------------------------------------------------------------
+    # Brand images, icons, fonts and sounds keep their names between releases: one day.
+    <FilesMatch "\.(png|jpe?g|gif|svg|ico|webp|woff2?|ttf|otf|ogg|mp3)$">
+        Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+    # Entry point, runtime config (config.json and config.<hostname>.json), service worker, embedded pages and Element Call's
+    # own index.html / config.json must always be revalidated so a new deployment or config change is picked up at once.
+    # (bundles/ and element-call/assets/ carry their own .htaccess with the immutable one-year policy.)
+    <FilesMatch "^(index\.html|version|sw\.js|manifest\.json|home\.html|welcome\.html|config(\..+)?\.json)$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+</IfModule>
+
+# --- Routing ------------------------------------------------------------------------------------------------------------
+<IfModule mod_rewrite.c>
+    # User deep link https://<web-origin>/u/<mxid>  ->  /#/user/<mxid>   (the link inside the Android QR code / "Share link").
+    # THE_REQUEST is the RAW (still percent-encoded) request line and the character class cannot contain CR/LF: never build the
+    # redirect from the decoded path (response splitting). NE keeps the % escapes and the # untouched. The scheme is explicit so
+    # the redirect stays https behind a TLS-terminating proxy.
+    RewriteCond %{THE_REQUEST} "^[A-Z]+ /u/([A-Za-z0-9%._~:@=+/-]+)[ ?]"
+    RewriteRule ^u/ "https://%{HTTP_HOST}/#/user/%1" [R=302,NE,L]
+    RewriteRule ^u/ "https://%{HTTP_HOST}/" [R=302,L]
+
+    # Element Call's own index.html for an unknown PAGE below /element-call/ (nginx: @element_call_spa). The Clariva widget URL is
+    # <base>index.html#?..., so this is only a safety net; missing assets (Accept: */*) stay 404.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{HTTP:Accept} text/html [NC]
+    RewriteRule ^element-call/ /element-call/index.html [L]
+
+    # The app is hash-routed and refers to its assets by relative URL, so there is deliberately NO "serve index.html for every
+    # path" fallback. Page navigations to unknown paths are sent to the app root; missing assets stay 404.
+    RewriteCond %{REQUEST_URI} !^/\.well-known/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{HTTP:Accept} text/html [NC]
+    RewriteRule ^ "https://%{HTTP_HOST}/" [R=302,L]
+</IfModule>
+
+# Server errors show the app's static "unable to load" page instead of the host's default page.
+ErrorDocument 500 /static/unable-to-load.html
+ErrorDocument 502 /static/unable-to-load.html
+ErrorDocument 503 /static/unable-to-load.html
+ErrorDocument 504 /static/unable-to-load.html
