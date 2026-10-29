@@ -198,22 +198,73 @@ describe("useChatGate", () => {
         });
     });
 
-    it("consultants are never gated and skip the hold / rate lookups entirely (L6)", async () => {
-        installApi({ isConsultant: 1 });
+    it("consultants chatting with a client are never gated, skip the hold lookups (L6) and only read the peer's role once", async () => {
+        installApi({ isConsultant: 1, peerIsConsultant: 0 });
         await startWallet();
         fetchMock.mockClear();
         const { result } = render();
         await act(async () => {
             await flush();
         });
-        expect(result.current).toMatchObject({ restricted: false, reason: "consultant" });
+        expect(result.current).toMatchObject({ restricted: false, reason: "consultant", peerIsConsultant: false });
         expect(callsTo("pending-holds/exists")).toBe(0);
-        expect(callsTo(`/v1/users/${enc(CONSULTANT)}`)).toBe(0);
+        expect(callsTo(`/v1/users/${enc(CONSULTANT)}`)).toBe(1);
+        expect(callsTo(`/v1/users/${enc(ME)}`)).toBe(0); // no balance refresh either
         await act(async () => {
             jest.advanceTimersByTime(180_000);
             await flush();
         });
         expect(callsTo("pending-holds/exists")).toBe(0); // and no 60 s loop
+        expect(callsTo(`/v1/users/${enc(CONSULTANT)}`)).toBe(1);
+    });
+
+    it("consultant <-> consultant: restricted with its own reason, and the call buttons are hidden too", async () => {
+        installApi({ isConsultant: 1, peerIsConsultant: 1 });
+        await startWallet();
+        const { result } = render();
+        const calls = renderHook(() => useClarivaCallRestriction(new FakeRoom() as any));
+        await act(async () => {
+            await flush();
+        });
+        expect(result.current).toMatchObject({
+            restricted: true,
+            reason: "consultant-peer",
+            role: true,
+            peerIsConsultant: true,
+        });
+        expect(calls.result.current).toBe(true);
+        expect(callsTo("pending-holds/exists")).toBe(0);
+    });
+
+    it("consultant <-> consultant shows at first paint from the cached peer role", async () => {
+        installApi({ isConsultant: 1, peerIsConsultant: 1 });
+        await startWallet();
+        await act(async () => {
+            await WalletStore.instance.getPeer(CONSULTANT);
+        });
+        fetchMock.mockClear();
+        const { result } = render();
+        expect(result.current).toMatchObject({ restricted: true, reason: "consultant-peer" });
+        await act(async () => {
+            await flush();
+        });
+        expect(callsTo(`/v1/users/${enc(CONSULTANT)}`)).toBe(0); // cache-first
+    });
+
+    it("consultant <-> consultant fails open while the peer's role is unknown", async () => {
+        installApi({ isConsultant: 1 });
+        const base = fetchMock.getMockImplementation()!;
+        fetchMock.mockImplementation((url: string, init: RequestInit) =>
+            String(url).includes(enc(CONSULTANT))
+                ? Promise.resolve(mockResponse(500, { message: "boom" }))
+                : base(url, init),
+        );
+        await startWallet();
+        const { result } = render();
+        await act(async () => {
+            await flush();
+        });
+        expect(result.current).toMatchObject({ restricted: false, reason: "consultant", peerIsConsultant: null });
     });
 
     it("non-DM rooms are never gated and trigger no requests", async () => {

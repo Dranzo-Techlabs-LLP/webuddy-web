@@ -17,16 +17,18 @@ limitations under the License.
 import { clarivaGet, clarivaPatch, clarivaPost, seg, type RequestOptions } from "./http";
 import {
     type ApproveRefundBody,
-    type BankDetailsBody,
     type CallTypeResponse,
     type ClaimAutoApprovalResponse,
     type CreateOrderResponse,
     type HoldExistsResponse,
+    type MyBankAccountResponse,
+    type MyBankDetailsBody,
     type PendingHoldStatus,
     type PendingRefundsForConsultantResponse,
     type RefundDecisionResponse,
     type RefundRequestBody,
     type RefundRequestResponse,
+    type SavedBankAccount,
     type SetCallTypeBody,
     type TransactionHistoryResponse,
     type VerifyPaymentRequest,
@@ -43,6 +45,11 @@ import {
  *
  * Business rules (self-heal, caches, gate, hold semantics) live in the stores, not here.
  */
+/** Adds `Authorization: Bearer <token>` (the only Wallet-API routes that need one are the `/v1/experts` ones). */
+function withBearer(bearer: string, options?: RequestOptions): RequestOptions {
+    return { ...options, headers: { ...options?.headers, Authorization: `Bearer ${bearer}` } };
+}
+
 export const ClarivaWalletApi = {
     // ─── users ───────────────────────────────────────────────────────────────
     /** Own balance + role, or a peer's rate + role. 404 when the user has no wallet row. */
@@ -126,6 +133,17 @@ export const ClarivaWalletApi = {
         clarivaGet("/v1/calls/type", { ...options, query: { roomId } }),
 
     // ─── consultant payout details ───────────────────────────────────────────
-    addBankDetails: (body: BankDetailsBody, options?: RequestOptions): Promise<unknown> =>
-        clarivaPost("/v1/experts/bank-details", body, options),
+    /**
+     * The caller's active payout account, masked (last 4 digits). `bearer` is the Clariva JWT or the session's
+     * Matrix access token (Android: `getMyBankDetails(bearer)`).
+     */
+    getMyBankDetails: (bearer: string, options?: RequestOptions): Promise<MyBankAccountResponse> =>
+        clarivaGet("/v1/experts/me/bank-details", withBearer(bearer, options)),
+
+    /** Save (replace) the caller's payout account. Consultants only; 400 with the API's reason for a bad IFSC. */
+    saveMyBankDetails: (
+        bearer: string,
+        body: MyBankDetailsBody,
+        options?: RequestOptions,
+    ): Promise<SavedBankAccount> => clarivaPost("/v1/experts/me/bank-details", body, withBearer(bearer, options)),
 };

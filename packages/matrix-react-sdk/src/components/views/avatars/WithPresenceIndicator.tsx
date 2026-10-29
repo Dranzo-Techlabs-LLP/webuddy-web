@@ -19,6 +19,7 @@ import { ClientEvent, Room, RoomMember, RoomStateEvent, UserEvent } from "matrix
 import { Tooltip } from "@vector-im/compound-web";
 
 import { isPresenceEnabled } from "../../../utils/presence";
+import { showsStockPresence } from "../../../clariva/presence/stockPresence"; // CLARIVA
 import { _t } from "../../../languageHandler";
 import DMRoomMap from "../../../utils/DMRoomMap";
 import { getJoinedNonFunctionalMembers } from "../../../utils/room/getJoinedNonFunctionalMembers";
@@ -104,7 +105,10 @@ const usePresence = (room: Room, member: RoomMember | null): Presence | null => 
     useEventEmitter(member?.user, UserEvent.CurrentlyActive, updatePresence);
     useEffect(updatePresence, [member]);
 
-    if (getJoinedNonFunctionalMembers(room).length !== 2 || !isPresenceEnabled(room.client)) return null;
+    // CLARIVA: no stock presence dot (it would ignore "Last seen and online")
+    if (getJoinedNonFunctionalMembers(room).length !== 2 || !showsStockPresence(isPresenceEnabled(room.client))) {
+        return null;
+    }
     return presence;
 };
 

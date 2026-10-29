@@ -19,8 +19,8 @@ import { type Room } from "matrix-js-sdk/src/matrix";
 
 import RoomAvatar from "../../../components/views/avatars/RoomAvatar";
 import { type IOOBData } from "../../../stores/ThreepidInviteStore";
-import { roomStrings } from "../../strings/room";
-import { usePeerPresence } from "./presence";
+import { useDmPeerStatus } from "../../presence/useDmPeerStatus";
+import { profileStrings } from "../../strings/profile";
 
 interface Props {
     room: Room;
@@ -31,14 +31,13 @@ interface Props {
 }
 
 /**
- * The room avatar inside a presence ring: the ring is teal while the other party of a 1:1 chat is online, and there is
- * simply no ring when presence is off or unknown (the Clariva homeserver does not share it). Same visual language as the
- * chat-list tile, drawn here so the room does not depend on the shell's component. The state is also available to
- * assistive tech as visually hidden text (the ring is not the only carrier of it).
+ * The room avatar inside a presence ring: the ring is teal while the other party of a 1:1 chat shows as "online" in the
+ * header (same source and the same "Last seen and online" rules, see `useDmPeerStatus`), and there is simply no ring
+ * otherwise. The state is also available to assistive tech as visually hidden text (the ring is not the only carrier
+ * of it).
  */
 export function ClarivaRoomAvatar({ room, oobData, size, onClick }: Props): JSX.Element {
-    const presence = usePeerPresence(room);
-    const state = presence?.state ?? null;
+    const state = useDmPeerStatus(room).online ? "online" : null;
     return (
         <span
             className="mx_ClarivaRoomAvatar"
@@ -47,7 +46,7 @@ export function ClarivaRoomAvatar({ room, oobData, size, onClick }: Props): JSX.
             style={{ "--cg-avatar-size": size } as React.CSSProperties}
         >
             <RoomAvatar room={room} size={size} oobData={oobData} onClick={onClick} />
-            {state === "online" && <span className="mx_ClarivaRoomAvatar_sr">{roomStrings.presenceOnline}</span>}
+            {state === "online" && <span className="mx_ClarivaRoomAvatar_sr">{profileStrings.presenceOnline}</span>}
         </span>
     );
 }

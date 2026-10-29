@@ -1,0 +1,158 @@
+/*
+Copyright 2026 The Clariva Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+ * Profile and privacy (src/clariva/components/settings): Settings -> Security & Privacy -> "Last seen and online" and its
+ * "Hide my last seen from" picker, Settings -> Account -> "Designation" and its editor, and the designation badge in the
+ * profile panel. The settings pages and dialogs are already glass (_dialogs.pcss); nothing here blurs. The badge itself
+ * is _chatroom.pcss (.mx_ClarivaRoleBadge).
+ */
+
+/* ── "Last seen and online" ── */
+
+:root[data-clariva] .mx_ClarivaLastSeen_options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-3x);
+
+    /* the stock radio's description sits under its label */
+    .mx_StyledRadioButton {
+        min-height: var(--clariva-tap, 44px);
+    }
+}
+
+:root[data-clariva] .mx_ClarivaLastSeen_except {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--cpd-space-2x);
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-sm);
+}
+
+:root[data-clariva] .mx_ClarivaLastSeen_hint,
+:root[data-clariva] .mx_ClarivaDesignation_hint {
+    margin: var(--cpd-space-2x) 0 0;
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-sm);
+    line-height: 1.45;
+}
+
+:root[data-clariva] .mx_ClarivaLastSeen_error,
+:root[data-clariva] .mx_ClarivaDesignation_error {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--cpd-space-2x);
+    margin: var(--cpd-space-2x) 0 0;
+    color: var(--cg-coral-text);
+    font-size: var(--cg-fs-sm);
+    font-weight: 500;
+
+    svg {
+        flex: none;
+        width: 18px;
+        height: 18px;
+    }
+}
+
+/* ── "Hide my last seen from" ── */
+
+:root[data-clariva] .mx_ClarivaLastSeenExceptDialog {
+    width: min(440px, 100%);
+
+    .mx_ClarivaLastSeenExcept_list {
+        display: flex;
+        flex-direction: column;
+        max-height: min(50vh, 420px);
+        margin: var(--cpd-space-3x) 0 0;
+        padding: 0;
+        overflow-y: auto;
+        list-style: none;
+    }
+
+    .mx_ClarivaLastSeenExcept_row {
+        min-height: var(--clariva-tap, 44px);
+        padding: var(--cpd-space-1x) 0;
+    }
+
+    .mx_ClarivaLastSeenExcept_person {
+        display: flex;
+        align-items: center;
+        gap: var(--cpd-space-3x);
+        min-width: 0;
+    }
+
+    .mx_ClarivaLastSeenExcept_names {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .mx_ClarivaLastSeenExcept_name {
+        overflow: hidden;
+        color: var(--cg-text);
+        font-weight: 600;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mx_ClarivaLastSeenExcept_id {
+        overflow: hidden;
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+/* ── "Designation" ── */
+
+:root[data-clariva] .mx_ClarivaDesignation_row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--cpd-space-3x);
+
+    .mx_ClarivaRoleBadge {
+        max-width: min(100%, 280px);
+    }
+
+    .mx_ClarivaDesignation_edit {
+        min-height: var(--clariva-tap, 44px);
+    }
+}
+
+:root[data-clariva] .mx_ClarivaDesignationDialog {
+    width: min(440px, 100%);
+}
+
+/* ── the profile panel: the badge under the name ── */
+
+:root[data-clariva] .mx_UserInfo_profile .mx_ClarivaUserInfo_designation {
+    display: flex;
+    justify-content: center;
+    max-width: 100%;
+    margin-top: var(--cpd-space-1x);
+
+    .mx_ClarivaRoleBadge {
+        max-width: min(100%, 280px);
+        color: var(--cg-teal-text);
+
+        .mx_ClarivaRoleBadge_icon {
+            color: var(--cg-teal-text);
+        }
+    }
+}

@@ -1049,7 +1049,8 @@ async function startMatrixClient(
     DeviceListener.sharedInstance().start(client);
     // Similarly, don't start sending presence updates until we've started
     // the client
-    if (!SettingsStore.getValue("lowBandwidth")) {
+    // CLARIVA: the presence heartbeat (Presence.start) runs in low-bandwidth mode too: chat partners rely on it
+    if (!SettingsStore.getValue("lowBandwidth") || Clariva.enabled) {
         Presence.start();
     }
 

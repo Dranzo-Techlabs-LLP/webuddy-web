@@ -23,6 +23,8 @@ import { MatrixClientPeg } from "./MatrixClientPeg";
 import dis from "./dispatcher/dispatcher";
 import Timer from "./utils/Timer";
 import { ActionPayload } from "./dispatcher/payloads";
+import { isClarivaEnabled } from "./clariva/config"; // CLARIVA
+import { ClarivaPresenceHeartbeat } from "./clariva/presence/PresenceHeartbeat"; // CLARIVA: WhatsApp-style presence
 
 // Time in ms after that a user is considered as unavailable/away
 const UNAVAILABLE_TIME_MS = 3 * 60 * 1000; // 3 mins
@@ -37,6 +39,11 @@ class Presence {
      * Any state change will be sent to the homeserver.
      */
     public async start(): Promise<void> {
+        // CLARIVA: presence is published explicitly ("online" while the tab is visible), never from user activity
+        if (isClarivaEnabled()) {
+            ClarivaPresenceHeartbeat.instance.start(MatrixClientPeg.safeGet());
+            return;
+        }
         this.unavailableTimer = new Timer(UNAVAILABLE_TIME_MS);
         // the user_activity_start action starts the timer
         this.dispatcherRef = dis.register(this.onAction);
@@ -54,6 +61,7 @@ class Presence {
      * Stop tracking user activity
      */
     public stop(): void {
+        ClarivaPresenceHeartbeat.instance.stop(); // CLARIVA: no-op unless it was started
         if (this.dispatcherRef) {
             dis.unregister(this.dispatcherRef);
             this.dispatcherRef = null;

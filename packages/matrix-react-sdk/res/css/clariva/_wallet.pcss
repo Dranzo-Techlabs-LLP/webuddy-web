@@ -1125,8 +1125,101 @@ body[class*="cpd-theme-dark"] .mx_ClarivaTxn_status_critical {
 }
 
 .mx_ClarivaBank {
-    gap: var(--cpd-space-4x);
+    gap: var(--cpd-space-6x);
     max-width: 440px;
+
+    /* the current payout account: a hairline block on the tile (an inset on an inset would stack two tints) */
+    .mx_ClarivaBank_saved {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cpd-space-1x);
+        padding: var(--cpd-space-4x);
+        border: 1px solid var(--cg-line);
+        border-radius: calc(var(--cg-r-lg) - var(--cpd-space-5x) + var(--cpd-space-2x));
+    }
+
+    .mx_ClarivaBank_savedLabel {
+        margin: 0 0 var(--cpd-space-1x);
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        font-weight: 500;
+    }
+
+    .mx_ClarivaBank_savedLine,
+    .mx_ClarivaBank_savedTitle {
+        display: flex;
+        align-items: center;
+        gap: var(--cpd-space-2x);
+        margin: 0;
+        color: var(--cg-text);
+        font-size: var(--cg-fs-md);
+        overflow-wrap: anywhere;
+    }
+
+    .mx_ClarivaBank_savedTitle {
+        @mixin cg-numerals;
+
+        font-size: var(--cg-fs-lg);
+        font-weight: 500;
+
+        svg {
+            flex: none;
+            width: 16px;
+            height: 16px;
+            color: var(--cg-text-2);
+        }
+    }
+
+    .mx_ClarivaBank_savedDetails {
+        margin: 0;
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+        overflow-wrap: anywhere;
+    }
+
+    .mx_ClarivaBank_savedFailed {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--cpd-space-2x);
+    }
+
+    .mx_ClarivaBank_retry {
+        @mixin cg-focus-ring;
+
+        min-height: 44px;
+        padding: 0 var(--cpd-space-2x);
+        border: 0;
+        border-radius: var(--cg-r-sm);
+        background: transparent;
+        color: var(--cg-teal-text);
+        font-family: var(--cg-font-ui);
+        font-size: var(--cg-fs-md);
+        font-weight: 600;
+        cursor: pointer;
+        touch-action: manipulation;
+    }
+
+    .mx_ClarivaBank_form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cpd-space-4x);
+    }
+
+    .mx_ClarivaBank_formTitle {
+        margin: 0;
+        color: var(--cg-text);
+        font-size: var(--cg-fs-lg);
+        font-weight: 600;
+    }
+
+    .mx_ClarivaBank_formSubtitle,
+    .mx_ClarivaBank_note {
+        margin: 0;
+        color: var(--cg-text-2);
+        font-size: var(--cg-fs-sm);
+    }
 
     .mx_ClarivaBank_error,
     .mx_ClarivaBank_success {

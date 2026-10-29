@@ -27,14 +27,38 @@ interface Props {
     credits: number | null;
     /** The consultant's price per 24 h chat, or `null` while unknown. */
     required: number | null;
+    /**
+     * Both sides are consultants (Android `isConsultantPeerBlocked`): say why instead of the wallet reason, and offer no
+     * Recharge (more credits would not help).
+     */
+    consultantPeer?: boolean;
 }
 
 /**
  * The "Chat restricted" bar (spec 03 U1) that REPLACES the whole composer when a client without a covering hold cannot
  * afford the consultant's session price. Line 2 only when both numbers are known. The "Recharge" button is a web
  * improvement (Android's bar has no action): a real secondary <button> that opens the Wallet settings tab.
+ *
+ * In a consultant <-> consultant chat the same bar reads "You can't chat with other consultants." / "Consultants can
+ * only chat with clients." (Android DisabledComposerView), without the Recharge button.
  */
-export function ChatRestrictedBar({ credits, required }: Props): JSX.Element {
+export function ChatRestrictedBar({ credits, required, consultantPeer = false }: Props): JSX.Element {
+    if (consultantPeer) {
+        return (
+            <div
+                className="mx_ClarivaChatRestricted mx_ClarivaChatRestricted_consultantPeer"
+                role="status"
+                data-testid="clariva-chat-restricted"
+                data-reason="consultant-peer"
+            >
+                <InfoIcon className="mx_ClarivaChatRestricted_icon" width="20px" height="20px" aria-hidden="true" />
+                <div className="mx_ClarivaChatRestricted_text">
+                    <div className="mx_ClarivaChatRestricted_title">{chatStrings.gateConsultantPeerTitle}</div>
+                    <div className="mx_ClarivaChatRestricted_amounts">{chatStrings.gateConsultantPeerSubtitle}</div>
+                </div>
+            </div>
+        );
+    }
     const showAmounts = credits !== null && required !== null;
     return (
         <div className="mx_ClarivaChatRestricted" role="status" data-testid="clariva-chat-restricted">

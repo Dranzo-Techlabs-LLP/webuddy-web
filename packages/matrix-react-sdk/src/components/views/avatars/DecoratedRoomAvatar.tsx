@@ -25,6 +25,7 @@ import NotificationBadge from "../rooms/NotificationBadge";
 import { RoomNotificationStateStore } from "../../../stores/notifications/RoomNotificationStateStore";
 import { NotificationState } from "../../../stores/notifications/NotificationState";
 import { isPresenceEnabled } from "../../../utils/presence";
+import { showsStockPresence } from "../../../clariva/presence/stockPresence"; // CLARIVA
 import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import { _t } from "../../../languageHandler";
 import DMRoomMap from "../../../utils/DMRoomMap";
@@ -165,7 +166,8 @@ export default class DecoratedRoomAvatar extends React.PureComponent<IProps, ISt
         const otherUserId = DMRoomMap.shared().getUserIdForRoomId(this.props.room.roomId);
         if (otherUserId && getJoinedNonFunctionalMembers(this.props.room).length === 2) {
             // Track presence, if available
-            if (isPresenceEnabled(this.props.room.client)) {
+            // CLARIVA: no stock presence dot (it would ignore "Last seen and online")
+            if (showsStockPresence(isPresenceEnabled(this.props.room.client))) {
                 this.dmUser = MatrixClientPeg.safeGet().getUser(otherUserId);
                 icon = this.getPresenceIcon();
             }

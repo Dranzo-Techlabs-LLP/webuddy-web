@@ -40,7 +40,10 @@ type EventHandlerMap = { [ChatGateControllerEvent.Update]: () => void };
  *  - Re-polled every `polling.gate_ms` ONLY for a confirmed client (role === false): the loop is keyed on the role,
  *    never on the restriction state, so a flicker does not restart it (L6). Each round is joined before the next
  *    delay is scheduled. Paused while the tab is hidden, refreshed on `visibilitychange`.
- *  - A consultant skips the hold / rate lookups altogether (`exists` is role-inverted for them).
+ *  - A consultant skips the balance / hold lookups altogether (`exists` is role-inverted for them) and only looks the
+ *    peer's ROLE up, cache-first and once (a role practically never changes), for the consultant <-> consultant rule
+ *    (Android MessageComposerPresenter `peerIsConsultantState`). Consultants are never polled.
+ *  - A peer re-read elsewhere (`WalletStoreEvent.Peer`, e.g. the chat header's forced refresh) updates the peer here.
  */
 export class ChatGateController extends TypedEventEmitter<ChatGateControllerEvent, EventHandlerMap> {
     private static readonly registry = new Map<string, ChatGateController>();
@@ -119,6 +122,7 @@ export class ChatGateController extends TypedEventEmitter<ChatGateControllerEven
         this.peerInternal = wallet.getCachedPeer(this.peerId) ?? null;
         this.lastRole = wallet.isConsultant;
         wallet.on(WalletStoreEvent.Update, this.onWalletUpdate);
+        wallet.on(WalletStoreEvent.Peer, this.onPeer);
         if (typeof document !== "undefined") document.addEventListener("visibilitychange", this.onVisibilityChange);
         void this.revalidate().then(() => this.scheduleNext());
     }
@@ -133,6 +137,7 @@ export class ChatGateController extends TypedEventEmitter<ChatGateControllerEven
         this.disposed = true;
         this.clearTimer();
         WalletStore.instance.off(WalletStoreEvent.Update, this.onWalletUpdate);
+        WalletStore.instance.off(WalletStoreEvent.Peer, this.onPeer);
         if (typeof document !== "undefined") document.removeEventListener("visibilitychange", this.onVisibilityChange);
         if (ChatGateController.registry.get(this.key) === this) ChatGateController.registry.delete(this.key);
         this.removeAllListeners();
@@ -163,8 +168,9 @@ export class ChatGateController extends TypedEventEmitter<ChatGateControllerEven
 
     private async runRevalidate(): Promise<void> {
         const wallet = WalletStore.instance;
-        // Consultants never need the hold / rate (and `exists` is role-inverted for them): L6.
-        if (wallet.isConsultant === true) return;
+        // Consultants never need the balance / hold (and `exists` is role-inverted for them): L6. They only need the
+        // peer's role, for the consultant <-> consultant rule.
+        if (wallet.isConsultant === true) return this.lookUpPeerRole();
         const seq = ++this.seq;
         const [, hold, peer] = await Promise.all([
             wallet.refreshBalance(),
@@ -184,6 +190,17 @@ export class ChatGateController extends TypedEventEmitter<ChatGateControllerEven
             changed = true;
         }
         if (changed) this.emit(ChatGateControllerEvent.Update);
+    }
+
+    /** Consultants: the peer's role only, cache-first (default open-chat TTL). A failed lookup keeps what is known. */
+    private async lookUpPeerRole(): Promise<void> {
+        const seq = ++this.seq;
+        const peer = await WalletStore.instance.getPeer(this.peerId);
+        if (this.disposed || seq !== this.seq) return;
+        if (peer && peer !== this.peerInternal) {
+            this.peerInternal = peer;
+            this.emit(ChatGateControllerEvent.Update);
+        }
     }
 
     // ── polling (confirmed clients only, never faster than the config floor) ───────────────────────────────
@@ -219,6 +236,16 @@ export class ChatGateController extends TypedEventEmitter<ChatGateControllerEven
         // The loop is keyed on the role: start it when a client is confirmed, stop it for a consultant.
         if (role === false && this.timer === undefined) this.scheduleNext();
         else if (role !== false) this.clearTimer();
+        // A consultant confirmed late still needs the peer's role (consultant <-> consultant rule).
+        if (role === true && this.peerInternal === null) void this.revalidate();
+    };
+
+    private readonly onPeer = (peerId: string): void => {
+        if (this.disposed || peerId !== this.peerId) return;
+        const peer = WalletStore.instance.getCachedPeer(peerId);
+        if (!peer || peer === this.peerInternal) return;
+        this.peerInternal = peer;
+        this.emit(ChatGateControllerEvent.Update);
     };
 
     private readonly onVisibilityChange = (): void => {

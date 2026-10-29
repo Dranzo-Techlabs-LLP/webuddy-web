@@ -16,7 +16,10 @@ limitations under the License.
 
 import { UIComponent } from "../../settings/UIFeature";
 import { ComponentVisibilityCustomisations } from "../ComponentVisibility";
+import { clarivaHidesComponent } from "../../clariva/chat/groupRooms"; // CLARIVA: no group rooms / spaces yet
 
 export function shouldShowComponent(component: UIComponent): boolean {
+    // CLARIVA: room directory and space creation are hidden while `features.group_rooms` is off (Android parity)
+    if (clarivaHidesComponent(component)) return false;
     return ComponentVisibilityCustomisations.shouldShowComponent?.(component) ?? true;
 }

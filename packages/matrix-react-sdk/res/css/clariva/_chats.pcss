@@ -795,7 +795,8 @@ limitations under the License.
         var(--cg-e1);
 }
 
-/* the avatar and its PRESENCE RING: teal when the peer is online, nothing otherwise */
+/* the avatar. No presence here, like Android's chat list: the stock dot comes straight from /sync and would ignore the
+   partner's "Last seen and online" choice (the open chat shows presence, with those rules) */
 :root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_avatar,
 :root[data-clariva] .mx_ClarivaRail .mx_ClarivaRail_avatar {
     position: relative;
@@ -811,7 +812,7 @@ limitations under the License.
     flex-shrink: 0;
 }
 
-/* the ring replaces the stock status dot (and the notch the dot is cut out of the avatar with) */
+/* no status dot, so no notch cut out of the avatar for it either */
 :root[data-clariva]
     .mx_LeftPanel
     .mx_RoomTile.mx_RoomTile_clariva
@@ -826,7 +827,8 @@ limitations under the License.
     opacity: 0;
 }
 
-/* ...but the dot stays reachable by keyboard (it carries the "Online" tooltip), so it shows while it has focus */
+/* ...the public-room globe stays reachable by keyboard (it carries a tooltip), so it shows while it has focus; the
+   presence dots are gone altogether (out of the focus order and the accessibility tree too) */
 :root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_DecoratedRoomAvatar_icon:focus-visible,
 :root[data-clariva] .mx_ClarivaRail .mx_DecoratedRoomAvatar_icon:focus-visible {
     opacity: 1;
@@ -835,10 +837,9 @@ limitations under the License.
 :root[data-clariva]
     .mx_LeftPanel
     .mx_RoomTile.mx_RoomTile_clariva
-    .mx_ClarivaRoomTile_avatar:has(.mx_DecoratedRoomAvatar_icon_online),
-:root[data-clariva] .mx_ClarivaRail .mx_ClarivaRail_avatar:has(.mx_DecoratedRoomAvatar_icon_online) {
-    outline: 2px solid var(--clariva-ring);
-    outline-offset: 2px;
+    .mx_DecoratedRoomAvatar_icon:not(.mx_DecoratedRoomAvatar_icon_globe),
+:root[data-clariva] .mx_ClarivaRail .mx_DecoratedRoomAvatar_icon:not(.mx_DecoratedRoomAvatar_icon_globe) {
+    display: none;
 }
 
 :root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_body {
@@ -882,6 +883,12 @@ limitations under the License.
     .mx_ClarivaRoomTile_nameRow
     .mx_RoomTile_title.mx_RoomTile_titleHasUnreadEvents {
     font-weight: 700;
+}
+
+/* the partner's designation badge (the tag itself is _chatroom.pcss): it keeps its capped width, the name gives way */
+:root[data-clariva] .mx_LeftPanel .mx_RoomTile.mx_RoomTile_clariva .mx_ClarivaRoomTile_nameRow .mx_ClarivaRoleBadge {
+    flex: 0 0 auto;
+    max-width: 120px;
 }
 
 /* the credits label: a quiet amber tag (amber text on the amber wash, 4.7:1; never text-3 here) */

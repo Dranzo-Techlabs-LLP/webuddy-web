@@ -23,16 +23,6 @@ import {
     parseDraft,
     sanitizeMaxCreditsInput,
 } from "../../src/clariva/wallet/maxCredits";
-import {
-    EMPTY_BANK_FORM,
-    canSaveBankForm,
-    normalizeBankForm,
-    sameBankForm,
-    toBankDetailsBody,
-    validateBankForm,
-    type BankForm,
-} from "../../src/clariva/wallet/bankDetails";
-
 describe("max credits draft logic (spec 02 section 3.8)", () => {
     it("digits only: typed or pasted garbage is stripped", () => {
         expect(sanitizeMaxCreditsInput("1a2b3")).toBe("123");
@@ -96,61 +86,4 @@ describe("max credits draft logic (spec 02 section 3.8)", () => {
     });
 });
 
-describe("bank details form logic (spec 02 section 2.7, 7.2.7)", () => {
-    const good: BankForm = {
-        bankName: " State Bank of India ",
-        accountNumber: "1234 5678 9012",
-        ifscCode: " sbin0001234 ",
-        accountHolderName: "A. Consultant",
-        branchName: "Main Branch",
-    };
-
-    it("starts empty, so Save Details is disabled", () => {
-        expect(canSaveBankForm(EMPTY_BANK_FORM, false)).toBe(false);
-        expect(Object.keys(validateBankForm(EMPTY_BANK_FORM))).toHaveLength(5);
-    });
-
-    it("a complete, well formed form can be saved (once, not while saving)", () => {
-        expect(validateBankForm(good)).toEqual({});
-        expect(canSaveBankForm(good, false)).toBe(true);
-        expect(canSaveBankForm(good, true)).toBe(false);
-    });
-
-    it("whitespace-only counts as blank", () => {
-        expect(validateBankForm({ ...good, bankName: "   " }).bankName).toBeDefined();
-        expect(canSaveBankForm({ ...good, branchName: " " }, false)).toBe(false);
-    });
-
-    it("checks the IFSC shape and that the account number is digits", () => {
-        expect(validateBankForm({ ...good, ifscCode: "SBIN1001234" }).ifscCode).toBeDefined(); // 5th char must be 0
-        expect(validateBankForm({ ...good, ifscCode: "SBIN000123" }).ifscCode).toBeDefined(); // too short
-        expect(validateBankForm({ ...good, accountNumber: "12AB5678" }).accountNumber).toBeDefined();
-        expect(validateBankForm({ ...good, accountNumber: "123" }).accountNumber).toBeDefined(); // too short
-    });
-
-    it("normalises what is sent: trimmed, IFSC upper-cased, account number without spaces", () => {
-        expect(normalizeBankForm(good)).toEqual({
-            bankName: "State Bank of India",
-            accountNumber: "123456789012",
-            ifscCode: "SBIN0001234",
-            accountHolderName: "A. Consultant",
-            branchName: "Main Branch",
-        });
-    });
-
-    it("builds the request body with the Matrix id as expertId", () => {
-        expect(toBankDetailsBody("@rao:clarivahub.com", good)).toEqual({
-            expertId: "@rao:clarivahub.com",
-            bankName: "State Bank of India",
-            accountNumber: "123456789012",
-            ifscCode: "SBIN0001234",
-            accountHolderName: "A. Consultant",
-            branchName: "Main Branch",
-        });
-    });
-
-    it("sameBankForm ignores cosmetic differences", () => {
-        expect(sameBankForm(good, { ...good, ifscCode: "SBIN0001234", bankName: "State Bank of India" })).toBe(true);
-        expect(sameBankForm(good, { ...good, branchName: "Other" })).toBe(false);
-    });
-});
+// The bank details rules moved to bankDetails-test.ts (shared with consultant sign-up, 2026-10-29).

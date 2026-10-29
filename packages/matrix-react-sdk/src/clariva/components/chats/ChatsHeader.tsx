@@ -34,6 +34,7 @@ import {
     UPDATE_TOP_LEVEL_SPACES,
 } from "../../../stores/spaces";
 import { isClarivaEnabled } from "../../config";
+import { clarivaHidesGroupRooms } from "../../chat/groupRooms";
 import { chatsStrings as S } from "../../strings/chats";
 import { useIsPhone } from "../shell/useMediaQuery";
 import { ClarivaCoinChip } from "./CoinChip";
@@ -44,13 +45,15 @@ const getActiveSpace = (): SpaceKey => SpaceStore.instance.activeSpace;
 
 /**
  * Phone only (the space rail is hidden there): a menu to switch between Chats (home) and the account's spaces. Renders
- * nothing for an account without spaces, which is the normal Clariva case.
+ * nothing for an account without spaces, which is the normal Clariva case, and nothing while group rooms (and with
+ * them spaces) are off (Android hides its Chats / Spaces bar). It still shows while a space is the active one, so a
+ * restored space selection never leaves the user without a way back to Chats.
  */
 function SpaceSwitcher(): JSX.Element | null {
     const [menuDisplayed, handle, openMenu, closeMenu] = useContextMenu<HTMLElement>();
     const spaces = useEventEmitterState(SpaceStore.instance, UPDATE_TOP_LEVEL_SPACES, getTopLevelSpaces);
     const activeSpace = useEventEmitterState(SpaceStore.instance, UPDATE_SELECTED_SPACE, getActiveSpace);
-    if (spaces.length === 0 && activeSpace === MetaSpace.Home) return null;
+    if ((spaces.length === 0 || clarivaHidesGroupRooms()) && activeSpace === MetaSpace.Home) return null;
 
     let menu: JSX.Element | undefined;
     if (menuDisplayed && handle.current) {

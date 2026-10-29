@@ -120,9 +120,6 @@ export const walletStrings = {
     amountWholeNumber: "Enter a whole number of credits.",
     /** [W] */
     securedByRazorpay: "Secured by Razorpay · charged in INR",
-    /** [WEB] helper texts of the Billing and Payments fields. */
-    accountNumberHelp: "Digits only, as printed on your passbook or cheque.",
-    ifscHelp: "11 characters, e.g. SBIN0001234.",
     /** [WEB] */
     completePaymentPrompt: "Complete the payment in the Razorpay window.",
     confirmingPayment: "Confirming your payment...",
@@ -164,17 +161,32 @@ export const walletStrings = {
     maxCreditsSaveFailed: "Couldn't save max credits. Please try again.",
     bankDetails: "Bank Details",
 
-    // ── Bank details [A] ─────────────────────────────────────────────────────
+    // ── Bank details [A] (Android BankDetailsView, 2026-10-29) ───────────────
+    currentPayoutAccount: "Current payout account",
+    noPayoutAccount: "None yet. Add one below to receive your earnings.",
+    payoutAccountLoadFailed: "Couldn't load your saved account.",
+    /** [WEB] accessible status while the saved account loads (Android shows a bare spinner). */
+    payoutAccountLoading: "Loading your saved account…",
+    addPayoutAccount: "Add payout account",
+    replacePayoutAccount: "Replace payout account",
+    payoutAccountSubtitle: "Your earnings are paid into this account.",
+    accountHolderName: "Account Holder Name",
     bankName: "Bank Name",
+    bankNamePlaceholder: "e.g. State Bank of India",
     accountNumber: "Account Number",
     ifscCode: "IFSC Code",
-    accountHolderName: "Account Holder Name",
-    branchName: "Branch Name",
+    ifscPlaceholder: "e.g. SBIN0001234",
+    branchNameOptional: "Branch Name (optional)",
     saveDetails: "Save Details",
     savedChanges: "Saved changes",
-    error: "Error",
-    /** [WEB] client-side format checks (Android has none, spec 02 §7.2.7). */
-    fieldRequired: "This field is required.",
-    ifscInvalid: "IFSC codes are 11 characters: 4 letters, a zero, then 6 letters or digits.",
-    accountNumberInvalid: "Account numbers contain digits only.",
+    bankSaveFailed: "Couldn't save your bank details. Check your connection and try again.",
+    bankReplaceNote:
+        "Saving replaces your current payout account. Only the last 4 digits of the account number are shown here.",
+
+    // ── Bank account rules + live IFSC check (shared with consultant sign-up) ─
+    accountNumberError: "Account number must be 9 to 18 digits",
+    ifscFormatError: "IFSC code looks like ABCD0123456",
+    ifscChecking: "Checking IFSC…",
+    ifscNotFound: "No bank branch found for this IFSC. Please check the code.",
+    ifscUnavailable: "Couldn't verify this IFSC right now. It will be checked when you save.",
 } as const;

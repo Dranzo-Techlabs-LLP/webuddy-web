@@ -17,20 +17,10 @@ limitations under the License.
 /**
  * User-visible English strings of the "Clear Water" chat room chrome (src/clariva/components/room): the glass header,
  * the DM intro card, the composer action and the delivery ticks. Plain verbs, sentence case, no exclamation marks
- * (docs/clariva/DESIGN-SYSTEM.md section 7). [WEB] marks copy that only exists on the web.
+ * (docs/clariva/DESIGN-SYSTEM.md section 7). [WEB] marks copy that only exists on the web. The designation badge and the
+ * presence line ("online", "last seen ...") are Android copy: see `strings/profile.ts`.
  */
 export const roomStrings = {
-    /** [WEB] role badge of a consultant, in the room header and on the intro card. */
-    consultantBadge: "Consultant",
-
-    /** [WEB] presence line of the room header (only when the homeserver shares presence). */
-    presenceOnline: "Online",
-    presenceAway: "Away",
-    presenceBusy: "Busy",
-    presenceOffline: "Offline",
-    /** `duration` is already short, e.g. `5m` or `2h`. */
-    presenceLastSeen: (duration: string): string => `Last seen ${duration} ago`,
-
     /** [WEB] rate chip of the intro card, e.g. `100 credits per 24 h chat`. `n` is already formatted. */
     introRate: (n: string): string => `${n} credits per 24 h chat`,
     /** [WEB] only shown when the room is actually end-to-end encrypted. */

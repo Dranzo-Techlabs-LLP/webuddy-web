@@ -34,6 +34,7 @@ import { _t } from "../../../languageHandler";
 import { useContextMenu } from "../../structures/ContextMenu";
 import SpaceCreateMenu from "./SpaceCreateMenu";
 import { SpaceButton, SpaceItem } from "./SpaceTreeLevel";
+import { clarivaHidesGroupRooms } from "../../../clariva/chat/groupRooms"; // CLARIVA: no spaces yet
 import { useEventEmitter, useEventEmitterState } from "../../../hooks/useEventEmitter";
 import SpaceStore from "../../../stores/spaces/SpaceStore";
 import {
@@ -293,8 +294,12 @@ interface IInnerSpacePanelProps extends DroppableProvidedProps {
 // Optimisation based on https://github.com/atlassian/react-beautiful-dnd/blob/master/docs/api/droppable.md#recommended-droppable--performance-optimisation
 const InnerSpacePanel = React.memo<IInnerSpacePanelProps>(
     ({ children, isPanelCollapsed, setPanelCollapsed, isDraggingOver, innerRef, ...props }) => {
-        const [invites, metaSpaces, actualSpaces, activeSpace] = useSpaces();
+        const [allInvites, metaSpaces, allSpaces, activeSpace] = useSpaces();
         const activeSpaces = activeSpace ? [activeSpace] : [];
+        // CLARIVA: while group rooms are off the rail only offers Home & co. (Android hides its Chats / Spaces bar)
+        const hideSpaces = clarivaHidesGroupRooms();
+        const invites = hideSpaces ? [] : allInvites;
+        const actualSpaces = hideSpaces ? [] : allSpaces;
 
         const metaSpacesSection = metaSpaces
             .filter((key) => !(key === MetaSpace.VideoRooms && !SettingsStore.getValue("feature_video_rooms")))

@@ -24,6 +24,7 @@ import PageType from "../../src/PageTypes";
 import { MatrixClientPeg } from "../../src/MatrixClientPeg";
 import RoomListStore from "../../src/stores/room-list/RoomListStore";
 import {
+    availableChatFilters,
     CHAT_FILTER_ORDER,
     ChatFilter,
     ChatFilterCondition,
@@ -79,6 +80,29 @@ describe("chat filter selection (Android RoomListFilter rules)", () => {
         expect([...invites]).toEqual([ChatFilter.Invites]);
         // and the other way round
         expect([...toggleChatFilter(invites, ChatFilter.Favourites)]).toEqual([ChatFilter.Favourites]);
+    });
+
+    it("offers every chip but Rooms while group rooms are off", () => {
+        expect(availableChatFilters(true)).toEqual(CHAT_FILTER_ORDER);
+        expect(availableChatFilters(false)).toEqual([
+            ChatFilter.Unread,
+            ChatFilter.People,
+            ChatFilter.Favourites,
+            ChatFilter.Invites,
+        ]);
+        const noRooms = availableChatFilters(false);
+        expect(visibleChatFilters(new Set(), noRooms)).toEqual(noRooms);
+        expect(visibleChatFilters(new Set([ChatFilter.Favourites]), noRooms)).toEqual([
+            ChatFilter.Favourites,
+            ChatFilter.Unread,
+            ChatFilter.People,
+        ]);
+        // the default follows the configuration: stock (no Clariva) keeps them all, Clariva hides Rooms by default
+        expect(availableChatFilters()).toEqual(CHAT_FILTER_ORDER);
+        configureClariva();
+        expect(availableChatFilters()).not.toContain(ChatFilter.Rooms);
+        configureClariva({ features: { group_rooms: true } });
+        expect(availableChatFilters()).toContain(ChatFilter.Rooms);
     });
 
     it("shows the selected chips first and hides the ones that cannot be combined", () => {
@@ -168,8 +192,8 @@ describe("<ChatFilterChips />", () => {
         expect(container).toBeEmptyDOMElement();
     });
 
-    it("shows the five chips with aria-pressed and toggles them", () => {
-        configureClariva();
+    it("shows the five chips with aria-pressed and toggles them (group rooms on)", () => {
+        configureClariva({ features: { group_rooms: true } });
         render(<ChatFilterChips />);
         const group = screen.getByRole("group", { name: chatsStrings.filtersLabel });
         expect(group).toHaveAttribute("data-active", "false");
@@ -189,6 +213,21 @@ describe("<ChatFilterChips />", () => {
         expect(screen.getByRole("button", { name: "People" })).toHaveAttribute("aria-pressed", "false");
         expect(screen.getByRole("button", { name: "Rooms" })).toBeInTheDocument();
         expect(group).toHaveAttribute("data-active", "false");
+    });
+
+    it("has no Rooms chip while group rooms are off (the default, Android GROUP_ROOMS_ENABLED = false)", () => {
+        configureClariva();
+        render(<ChatFilterChips />);
+        for (const label of ["Unread", "People", "Favourites", "Invites"]) {
+            expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+        }
+        expect(screen.queryByRole("button", { name: "Rooms" })).toBeNull();
+        // and it cannot be selected another way either
+        act(() => ClarivaChatFilterStore.instance.toggle(ChatFilter.Rooms));
+        expect(ClarivaChatFilterStore.instance.selected.size).toBe(0);
+        fireEvent.click(screen.getByRole("button", { name: "People" }));
+        fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+        expect(screen.queryByRole("button", { name: "Rooms" })).toBeNull();
     });
 
     it("forgets the selection when it unmounts (sign-out)", () => {
@@ -249,11 +288,11 @@ describe("<ChatsEmptyState />", () => {
 });
 
 describe("<ClarivaChatsFab />", () => {
-    it("is a labelled button that starts a chat", () => {
+    it("is a labelled button that starts a chat (Android's a11y label 'Start a new chat')", () => {
         configureClariva();
         const dispatch = jest.spyOn(defaultDispatcher, "dispatch").mockImplementation(() => {});
         render(<ClarivaChatsFab />);
-        fireEvent.click(screen.getByRole("button", { name: "Start chat" }));
+        fireEvent.click(screen.getByRole("button", { name: "Start a new chat" }));
         expect(dispatch).toHaveBeenCalledWith({ action: "view_create_chat" });
     });
 

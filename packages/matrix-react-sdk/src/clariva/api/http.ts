@@ -105,6 +105,55 @@ export function extractServerMessage(body: unknown): string | undefined {
     return undefined;
 }
 
+/** What a redacted credential is replaced with in error messages and bodies. */
+export const REDACTED = "<redacted>";
+
+/**
+ * The credentials a request carries (Android 58233a769a redacts the `Authorization` header in its HTTP logs): the
+ * whole `Authorization` value and the bare token after its scheme (`Bearer <Matrix access token | Clariva JWT>`).
+ */
+export function credentialsOf(headers: Readonly<Record<string, string>>): string[] {
+    const secrets: string[] = [];
+    for (const [name, value] of Object.entries(headers)) {
+        if (name.toLowerCase() !== "authorization" || !value) continue;
+        secrets.push(value);
+        const token = value.replace(/^\S+\s+/, "").trim();
+        if (token && token !== value) secrets.push(token);
+    }
+    // longest first, so a whole "Bearer <token>" is replaced before its bare token
+    return secrets.filter((secret) => secret.length >= 8).sort((a, b) => b.length - a.length);
+}
+
+/**
+ * `text` with every `secret` and any `Bearer <token>` replaced by `<redacted>`. ClarivaHttpError messages end up in the
+ * console and therefore in rageshake bug reports, and a browser's fetch error (e.g. an invalid header value) or a
+ * server's error envelope may quote what was sent.
+ */
+export function redactCredentials(text: string, secrets: readonly string[] = []): string {
+    let out = text;
+    for (const secret of secrets) out = out.split(secret).join(REDACTED);
+    return out.replace(/\b(Bearer)\s+(?!<redacted>)[A-Za-z0-9\-._~+/=:]+/gi, `$1 ${REDACTED}`);
+}
+
+/** `redactCredentials` for a parsed response body (only when it actually quotes a credential). */
+function redactBody(body: unknown, secrets: readonly string[]): unknown {
+    if (body === undefined || body === null) return body;
+    if (typeof body === "string") return redactCredentials(body, secrets);
+    let json: string;
+    try {
+        json = JSON.stringify(body);
+    } catch {
+        return undefined;
+    }
+    const redacted = redactCredentials(json, secrets);
+    if (redacted === json) return body;
+    try {
+        return JSON.parse(redacted);
+    } catch {
+        return REDACTED;
+    }
+}
+
 function joinUrl(base: string, path: string): string {
     return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }
@@ -112,8 +161,11 @@ function joinUrl(base: string, path: string): string {
 /**
  * The single place that talks to the Wallet-API.
  *
- * - No cookies, no `Authorization` header unless the caller passes one (only `/v1/auth/matrix-session` needs it).
+ * - No cookies, no `Authorization` header unless the caller passes one (`/v1/auth/matrix-session` and the
+ *   `/v1/experts` routes need one).
  * - Success is any 2xx (the API answers 201 for most POSTs); an empty body resolves to `undefined`.
+ * - Nothing here logs, and the request headers are never kept on a `ClarivaHttpError`; its message, server message and
+ *   body are scrubbed of the request's credentials (`redactCredentials`), because callers log those errors.
  */
 export async function clarivaRequest<T>(method: HttpMethod, path: string, options: RequestOptions = {}): Promise<T> {
     const base = getClarivaConfig().api_base_url;
@@ -134,6 +186,7 @@ export async function clarivaRequest<T>(method: HttpMethod, path: string, option
     if (options.signal?.aborted) controller.abort();
 
     const headers: Record<string, string> = { Accept: "application/json", ...options.headers };
+    const secrets = credentialsOf(headers);
     let body: string | undefined;
     if (options.body !== undefined) {
         headers["Content-Type"] = "application/json";
@@ -155,7 +208,8 @@ export async function clarivaRequest<T>(method: HttpMethod, path: string, option
         if (timedOut) throw new ClarivaHttpError(0, `Request timed out after ${timeoutMs} ms`, "timeout", undefined, undefined, url);
         // A caller-initiated abort should surface as an AbortError so callers can ignore it.
         if (options.signal?.aborted) throw e;
-        throw new ClarivaHttpError(0, e instanceof Error ? e.message : "Network error", "network", undefined, undefined, url);
+        const message = e instanceof Error ? redactCredentials(e.message, secrets) : "Network error";
+        throw new ClarivaHttpError(0, message, "network", undefined, undefined, url);
     } finally {
         clearTimeout(timer);
         options.signal?.removeEventListener("abort", onCallerAbort);
@@ -176,13 +230,14 @@ export async function clarivaRequest<T>(method: HttpMethod, path: string, option
     }
 
     if (!response.ok) {
-        const serverMessage = extractServerMessage(parsed);
+        const raw = extractServerMessage(parsed);
+        const serverMessage = raw === undefined ? undefined : redactCredentials(raw, secrets);
         throw new ClarivaHttpError(
             response.status,
             serverMessage ?? `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`,
             "http",
             serverMessage,
-            parsed,
+            redactBody(parsed, secrets),
             url,
         );
     }

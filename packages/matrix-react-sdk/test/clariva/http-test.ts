@@ -21,7 +21,9 @@ import {
     buildQuery,
     clarivaGet,
     clarivaPost,
+    credentialsOf,
     extractServerMessage,
+    redactCredentials,
     seg,
 } from "../../src/clariva/api/http";
 import { mockResponse } from "./helpers";
@@ -197,6 +199,82 @@ describe("clariva http", () => {
             expect(init.headers.Authorization).toBe("Bearer the-jwt");
             expect(init.headers["X-Trace"]).toBe("1");
             expect(init.body).toBeUndefined();
+        });
+    });
+
+    describe("credentials never reach an error (and therefore the logs / rageshakes; Android 58233a769a)", () => {
+        const TOKEN = "syt_bWF0cml4LXVzZXI_SECRETxyz_0a1b2c";
+        const auth = { headers: { Authorization: `Bearer ${TOKEN}` } };
+
+        const failure = async (call: () => Promise<unknown>): Promise<ClarivaHttpError> => {
+            try {
+                await call();
+            } catch (e) {
+                return e as ClarivaHttpError;
+            }
+            throw new Error("expected the call to fail");
+        };
+        const leaks = (error: ClarivaHttpError): boolean =>
+            [error.message, error.serverMessage, JSON.stringify(error.body), JSON.stringify(error), String(error)].some(
+                (text) => !!text && text.includes(TOKEN),
+            );
+
+        it("credentialsOf picks the whole Authorization value and its bare token, case-insensitively", () => {
+            expect(credentialsOf({ authorization: `Bearer ${TOKEN}`, Accept: "application/json" })).toEqual([
+                `Bearer ${TOKEN}`,
+                TOKEN,
+            ]);
+            expect(credentialsOf({ Accept: "application/json" })).toEqual([]);
+        });
+
+        it("redactCredentials scrubs the given secrets and any Bearer token", () => {
+            expect(redactCredentials(`bad header "Bearer ${TOKEN}"`, [TOKEN])).toBe('bad header "Bearer <redacted>"');
+            expect(redactCredentials(`token ${TOKEN} rejected`, [TOKEN])).toBe("token <redacted> rejected");
+            expect(redactCredentials("Authorization: bearer abc.def.ghi")).toBe("Authorization: bearer <redacted>");
+            expect(redactCredentials("Insufficient credits")).toBe("Insufficient credits");
+        });
+
+        it("a browser fetch error quoting the header value is scrubbed", async () => {
+            fetchMock.mockRejectedValue(new TypeError(`Headers.append: "Bearer ${TOKEN}" is an invalid header value.`));
+            const error = await failure(() => clarivaGet("/v1/experts/me/bank-details", auth));
+            expect(error.kind).toBe("network");
+            expect(leaks(error)).toBe(false);
+            expect(error.message).toContain("<redacted>");
+        });
+
+        it("a server error envelope echoing the token is scrubbed (message, server message and body)", async () => {
+            fetchMock.mockResolvedValue(
+                mockResponse(401, { statusCode: 401, message: `Invalid token ${TOKEN}`, token: TOKEN }),
+            );
+            const error = await failure(() => clarivaPost("/v1/experts/me/bank-details", { ifsc: "X" }, auth));
+            expect(error.status).toBe(401);
+            expect(leaks(error)).toBe(false);
+            expect(error.serverMessage).toBe("Invalid token <redacted>");
+            expect(error.body).toEqual({ statusCode: 401, message: "Invalid token <redacted>", token: "<redacted>" });
+        });
+
+        it("an ordinary error body is passed through untouched, and the headers are never kept on the error", async () => {
+            const body = { statusCode: 401, message: "Invalid or expired token" };
+            fetchMock.mockResolvedValue(mockResponse(401, body));
+            const error = await failure(() => clarivaGet("/v1/experts/me/bank-details", auth));
+            expect(error.body).toEqual(body);
+            expect(error.serverMessage).toBe("Invalid or expired token");
+            expect(Object.values(error).some((v) => JSON.stringify(v ?? null).includes("Authorization"))).toBe(false);
+            expect(leaks(error)).toBe(false);
+        });
+
+        it("nothing is logged while a request with a Bearer token runs or fails", async () => {
+            const spies = (["log", "info", "debug", "warn", "error"] as const).map((m) =>
+                jest.spyOn(console, m).mockImplementation(() => {}),
+            );
+            fetchMock.mockResolvedValueOnce(mockResponse(200, { last4: "1234" }));
+            await clarivaGet("/v1/experts/me/bank-details", auth);
+            fetchMock.mockResolvedValueOnce(mockResponse(500, { message: "boom" }));
+            await failure(() => clarivaGet("/v1/experts/me/bank-details", auth));
+            for (const spy of spies) {
+                for (const args of spy.mock.calls) expect(JSON.stringify(args)).not.toContain(TOKEN);
+                spy.mockRestore();
+            }
         });
     });
 });

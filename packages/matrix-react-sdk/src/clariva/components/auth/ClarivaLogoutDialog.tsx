@@ -17,6 +17,7 @@ limitations under the License.
 import React, { useEffect, useState } from "react";
 
 import dis from "../../../dispatcher/dispatcher";
+import Modal from "../../../Modal";
 import BaseDialog from "../../../components/views/dialogs/BaseDialog";
 import DialogButtons from "../../../components/views/elements/DialogButtons";
 import { ClarivaBackupProgress } from "../../session/backupProgress";
@@ -45,8 +46,10 @@ export const ClarivaLogoutDialog: React.FC<Props> = ({ onFinished }) => {
     }, [progress]);
 
     const confirm = (): void => {
-        dis.dispatch({ action: "logout" });
         onFinished(true);
+        // opened from Settings, the Settings dialog would otherwise stay open over the sign-in page
+        Modal.forceCloseAllModals();
+        dis.dispatch({ action: "logout" });
     };
 
     return (

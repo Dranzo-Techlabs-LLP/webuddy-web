@@ -30,10 +30,13 @@ import { startDm } from "./dm/startDm";
 import { resolveThreePids } from "./threepids";
 import { isClarivaEnabled } from "../clariva/config"; // CLARIVA: DM parameters of the Android app (spec 04 §3.16)
 import { confirmStartDm } from "../clariva/qr/confirmStartDm"; // CLARIVA: Android's "Send invite?" step
+import { ConsultantChatNotAllowedError, refuseConsultantDm } from "../clariva/chat/consultantRule"; // CLARIVA: consultants only chat with clients
+import { refuseGroupDm } from "../clariva/chat/groupRooms"; // CLARIVA: no group chats while group rooms are off
 
 /**
  * Starts a DM: reuses an existing one or opens a local room that becomes the real room with the first message.
- * Resolves to the room id, or null when nothing was started (CLARIVA: the user cancelled "Send invite?").
+ * Resolves to the room id, or null when nothing was started (CLARIVA: the user cancelled "Send invite?", or the
+ * consultant <-> consultant rule refused the chat).
  */
 export async function startDmOnFirstMessage(client: MatrixClient, targets: Member[]): Promise<string | null> {
     let resolvedTargets = targets;
@@ -56,6 +59,12 @@ export async function startDmOnFirstMessage(client: MatrixClient, targets: Membe
         });
         return existingRoom.roomId;
     }
+
+    // CLARIVA: a consultant may not start a NEW chat with another consultant (Android DefaultStartDMAction): warn and
+    // start nothing, exactly like "Cancel" below. An existing consultant <-> consultant DM was simply opened above.
+    const targetIds = resolvedTargets.map((t) => t.userId);
+    refuseGroupDm(targetIds); // CLARIVA: a multi-person "DM" is a group room (Start chat picks one user, like Android)
+    if (await refuseConsultantDm(client.getUserId(), targetIds)) return null;
 
     // CLARIVA: no DM exists yet -> Android asks "Send invite? Would you like to start a chat with <name>?" first.
     // Nothing is debited here (or when the room is created): billing happens with the first message / answered call.
@@ -101,7 +110,13 @@ export async function createRoomFromLocalRoom(client: MatrixClient, localRoom: L
             localRoom.actualRoomId = roomId;
             return waitForRoomReadyAndApplyAfterCreateCallbacks(client, localRoom, roomId);
         },
-        () => {
+        (e) => {
+            if (e instanceof ConsultantChatNotAllowedError) {
+                // CLARIVA: refused by policy (roles confirmed only by the first send) and "Can't start chat" was shown.
+                // Android shows it without a retry, so do not leave a local room with "Retry": discard it.
+                dis.dispatch({ action: Action.ViewHomePage });
+                return;
+            }
             logger.warn(`Error creating DM for local room ${localRoom.roomId}`);
             localRoom.state = LocalRoomState.ERROR;
             client.emit(ClientEvent.Room, localRoom);

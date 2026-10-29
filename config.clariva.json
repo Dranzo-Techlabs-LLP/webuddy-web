@@ -59,7 +59,7 @@
         "feature_release_announcement": false
     },
     "enable_presence_by_hs_url": {
-        "https://matrix.clarivahub.com": false
+        "https://matrix.clarivahub.com": true
     },
     "setting_defaults": {
         "UIFeature.registration": false,

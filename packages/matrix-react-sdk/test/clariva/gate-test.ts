@@ -37,9 +37,34 @@ describe("decideGate — spec 03 §3.3 decision table", () => {
             expect(gate({ peerId: null })).toEqual({ restricted: false, reason: "no-peer" });
         });
 
-        it("2: consultants are never gated, whatever else is true", () => {
-            expect(gate({ role: true })).toEqual({ restricted: false, reason: "consultant" });
-            expect(gate({ role: true, holdExists: false, balance: 0, rate: 1000 }).restricted).toBe(false);
+        it("1b: consultant <-> consultant is restricted (consultants only chat with clients)", () => {
+            expect(gate({ role: true, peerIsConsultant: true })).toEqual({
+                restricted: true,
+                reason: "consultant-peer",
+            });
+            // whatever the money says: a hold, a balance or a free peer do not lift it
+            expect(gate({ role: true, peerIsConsultant: true, holdExists: true, balance: 1000, rate: 0 }).reason).toBe(
+                "consultant-peer",
+            );
+            // ...and with bill_consultants_only off too
+            expect(gate({ role: true, peerIsConsultant: true, billConsultantsOnly: false }).restricted).toBe(true);
+        });
+
+        it("1b: both roles must be CONFIRMED; an unknown one fails open", () => {
+            expect(gate({ role: true, peerIsConsultant: null })).toEqual({ restricted: false, reason: "consultant" });
+            expect(gate({ role: null, peerIsConsultant: true })).toEqual({ restricted: false, reason: "role-unknown" });
+            expect(gate({ peerId: null, role: true, peerIsConsultant: true }).reason).toBe("no-peer");
+        });
+
+        it("2: consultants chatting with clients are never gated, whatever else is true", () => {
+            expect(gate({ role: true, peerIsConsultant: false })).toEqual({ restricted: false, reason: "consultant" });
+            expect(
+                gate({ role: true, peerIsConsultant: false, holdExists: false, balance: 0, rate: 1000 }).restricted,
+            ).toBe(false);
+        });
+
+        it("a client chatting with a consultant is never hit by the consultant rule", () => {
+            expect(gate({ role: false, peerIsConsultant: true, holdExists: true }).reason).toBe("hold-covers");
         });
 
         it("3: unknown role never restricts (an earlier version flashed the banner for consultants)", () => {

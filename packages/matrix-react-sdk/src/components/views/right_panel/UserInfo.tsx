@@ -74,6 +74,8 @@ import PresenceLabel from "../rooms/PresenceLabel";
 import BulkRedactDialog from "../dialogs/BulkRedactDialog";
 import ShareDialog from "../dialogs/ShareDialog";
 import { getUserShareLink } from "../../../clariva/qr/links"; // CLARIVA: share the Clariva user link
+import { isClarivaEnabled } from "../../../clariva/config"; // CLARIVA
+import { ClarivaUserDesignationBadge } from "../../../clariva/components/room/RoleBadge"; // CLARIVA: designation badge
 import ErrorDialog from "../dialogs/ErrorDialog";
 import QuestionDialog from "../dialogs/QuestionDialog";
 import ConfirmUserActionDialog from "../dialogs/ConfirmUserActionDialog";
@@ -1693,7 +1695,10 @@ export const UserInfoHeader: React.FC<{
     }
 
     let presenceLabel: JSX.Element | undefined;
-    if (showPresence) {
+    // CLARIVA: no stock presence label (it would ignore the "Last seen and online" choices); the designation instead
+    if (isClarivaEnabled()) {
+        presenceLabel = <ClarivaUserDesignationBadge userId={member.userId} />;
+    } else if (showPresence) {
         presenceLabel = (
             <PresenceLabel
                 activeAgo={presenceLastActiveAgo}

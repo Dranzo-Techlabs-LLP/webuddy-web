@@ -21,10 +21,23 @@ import DecoratedRoomAvatar from "../../../components/views/avatars/DecoratedRoom
 import { DefaultTagID, type TagID } from "../../../stores/room-list/models";
 import { ClarivaRefundPill } from "../refund/ClarivaRefundPill";
 import { ClarivaRoomTileRate } from "../chat/RoomTileRate";
+import { useClarivaDmPeerId } from "../../chat/useChatGate";
+import { useCachedDesignationBadge } from "../../presence/designation";
+import { ClarivaRoleBadge } from "../room/RoleBadge";
 import { ClarivaRoomTileTime } from "./RoomTileTime";
 
 /** The avatar of a chat row, in px (the presence ring and the row geometry in _chats.pcss are built around it). */
 export const ROOM_TILE_AVATAR_SIZE = "52px";
+
+/**
+ * The DM partner's designation badge beside the name (Android `RoomSummaryRow` + `RoomListRoomSummaryFactory`): their
+ * designation when they are a consultant ("Consultant" by default), nothing for a client. Read from the WalletStore
+ * cache that the row's rate lookup fills; it appears (or changes) when that lookup or the open chat reloads the peer.
+ */
+export function ClarivaRoomTileDesignation({ room }: { room: Room }): JSX.Element | null {
+    const badge = useCachedDesignationBadge(useClarivaDmPeerId(room, false));
+    return badge ? <ClarivaRoleBadge text={badge} /> : null;
+}
 
 interface Props {
     room: Room;
@@ -44,13 +57,14 @@ interface Props {
 
 /**
  * The inside of a chat row in Clariva's Chats list (Android `RoomSummaryRow`): avatar, then a two-line body -
- * name (+ the consultant's quiet "N credits" tag and the red Refund pill) and the last-activity time, message preview
+ * name (+ the consultant's designation badge, their quiet "N credits" tag and the red Refund pill; the name gives way
+ * first) and the last-activity time, message preview
  * and unread badge. Rendered by `RoomTile` instead of the stock title container when Clariva is configured; layout is CSS
  * grid in res/css/clariva/_chats.pcss.
  *
- * The avatar sits in `.mx_ClarivaRoomTile_avatar`: CSS draws the PRESENCE RING around it when the stock avatar reports the
- * peer online (`.mx_DecoratedRoomAvatar_icon_online`, which comes from the user's presence as the stock avatar already
- * tracks it: no extra listener and no polling here).
+ * The avatar sits in `.mx_ClarivaRoomTile_avatar`. Like Android's chat list it shows no presence: the stock avatar's
+ * presence dot comes straight from /sync and would ignore the partner's "Last seen and online" choice, so CSS hides it
+ * (presence is shown, with those rules, in the open chat only).
  */
 export function ClarivaRoomTileContent({
     room,
@@ -75,6 +89,7 @@ export function ClarivaRoomTileContent({
             <div className="mx_ClarivaRoomTile_body">
                 <div className="mx_ClarivaRoomTile_nameRow">
                     {title}
+                    <ClarivaRoomTileDesignation room={room} />
                     <ClarivaRoomTileRate room={room} />
                     <ClarivaRefundPill room={room} />
                 </div>

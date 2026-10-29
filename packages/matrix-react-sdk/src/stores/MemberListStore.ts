@@ -20,6 +20,7 @@ import { KnownMembership } from "matrix-js-sdk/src/types";
 import SettingsStore from "../settings/SettingsStore";
 import { SdkContextClass } from "../contexts/SDKContext";
 import SdkConfig from "../SdkConfig";
+import { showsStockPresence } from "../clariva/presence/stockPresence"; // CLARIVA
 
 // Regex applied to filter our punctuation in member names before applying sort, to fuzzy it a little
 // matches all ASCII punctuation: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
@@ -153,7 +154,8 @@ export class MemberListStore {
             return true;
         }
         const enablePresenceByHsUrl = SdkConfig.get("enable_presence_by_hs_url");
-        return enablePresenceByHsUrl?.[this.stores.client!.baseUrl] ?? true;
+        // CLARIVA: no stock presence labels or presence ordering (it would ignore "Last seen and online")
+        return showsStockPresence(enablePresenceByHsUrl?.[this.stores.client!.baseUrl] ?? true);
     }
 
     /**

@@ -38,6 +38,7 @@ import { useMatrixClientContext } from "../../../../../contexts/MatrixClientCont
 import { isClarivaEnabled } from "../../../../../clariva/config"; // CLARIVA
 import { ClarivaDeactivateDialog } from "../../../../../clariva/components/auth/ClarivaDeactivateDialog";
 import { MyQrSettingsRow } from "../../../../../clariva/components/qr/MyQrSettingsRow"; // CLARIVA: "My QR code" row
+import { ClarivaDesignationSettings } from "../../../../../clariva/components/settings/DesignationSettings"; // CLARIVA
 
 interface IProps {
     closeSettingsFn: () => void;
@@ -210,6 +211,8 @@ const AccountUserSettingsTab: React.FC<IProps> = ({ closeSettingsFn }) => {
                 />
                 {/* CLARIVA: Settings -> Account -> "My QR code" (renders nothing unless Clariva QR is enabled) */}
                 <MyQrSettingsRow />
+                {/* CLARIVA: consultants' "Designation" (the badge beside their name; renders nothing otherwise) */}
+                <ClarivaDesignationSettings />
                 <UserPersonalInfoSettings canMake3pidChanges={canMake3pidChanges} />
                 <AccountSection
                     canChangePassword={canChangePassword && !isClarivaEnabled() /* CLARIVA: no Matrix password */}

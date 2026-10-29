@@ -27,8 +27,10 @@ import { ClarivaAuthPage } from "../../src/clariva/components/auth/ClarivaAuthPa
 import { ClarivaForgotPasswordDialog } from "../../src/clariva/components/auth/ClarivaForgotPasswordDialog";
 import { ClarivaGoogleRoleDialog } from "../../src/clariva/components/auth/ClarivaGoogleRoleDialog";
 import { ClarivaHttpError } from "../../src/clariva/api/http";
+import { ClarivaWalletApi } from "../../src/clariva/api/wallet";
 import { AUTH_STRINGS, ClarivaAuthError, clarivaAuth } from "../../src/clariva/session/ClarivaAuthService";
 import { ClarivaSession } from "../../src/clariva/session/ClarivaSession";
+import { EMPTY_CONSULTANT_SETUP } from "../../src/clariva/session/consultantSetup";
 import { authStrings } from "../../src/clariva/strings/auth";
 import { configureClariva } from "./helpers";
 
@@ -435,10 +437,100 @@ describe("ClarivaAuthPage", () => {
             const [dialog, props, , , , options] = createDialog.mock.calls[0];
             expect(dialog).toBe(ClarivaGoogleRoleDialog);
             // the dialog is told where the flow started and what the server answered (CHANGED: it used to get the email only)
-            expect(props).toEqual({ email: "j@gmail.com", fromSignIn: true, isExisting: false });
+            expect(props).toEqual({
+                email: "j@gmail.com",
+                fromSignIn: true,
+                isExisting: false,
+                initialSetup: EMPTY_CONSULTANT_SETUP,
+            });
             // not dismissible by an outside click
             await expect(options.onBeforeClose("backgroundClick")).resolves.toBe(false);
             await expect(options.onBeforeClose(undefined)).resolves.toBe(true);
+        });
+
+        it("Google consultant: the payout step is saved with the sign-in JWT after the account exists", async () => {
+            jest.spyOn(clarivaAuth, "signInWithGoogle")
+                .mockResolvedValueOnce({ kind: "roleRequired", email: "j@gmail.com", name: "J", isExisting: false })
+                .mockImplementationOnce(async () => {
+                    ClarivaSession.instance.setAuthenticated("jwt-google", signedIn.user);
+                    return { kind: "signedIn", ...signedIn };
+                });
+            const updateUser = jest.spyOn(ClarivaWalletApi, "updateUser").mockResolvedValue({} as never);
+            const saveBank = jest.spyOn(ClarivaWalletApi, "saveMyBankDetails").mockResolvedValue({} as never);
+            const payoutSetup = {
+                ...EMPTY_CONSULTANT_SETUP,
+                maxCredits: "40",
+                accountHolderName: "Jane",
+                bankName: "SBI",
+                accountNumber: "123456789012",
+                ifscCode: "SBIN0001234",
+            };
+            createDialog.mockImplementation(() => ({
+                finished: Promise.resolve([true, true, payoutSetup]),
+                close: jest.fn(),
+            }));
+            renderPage({ initialMode: "signUp" });
+            await waitFor(() => expect(mockGoogleOptions).toBeDefined());
+            await act(async () => {
+                mockGoogleOptions!.onCredential("t");
+            });
+            await waitFor(() => expect(onLoggedIn).toHaveBeenCalled());
+            expect(updateUser).toHaveBeenCalledWith("@jane:clarivahub.com", { max_credits: 40 }, { timeoutMs: 10_000 });
+            expect(saveBank).toHaveBeenCalledWith(
+                "jwt-google",
+                expect.objectContaining({ ifscCode: "SBIN0001234", accountNumber: "123456789012" }),
+                { timeoutMs: 10_000 },
+            );
+        });
+
+        it("Google consultant: opening the session fails after the save started, so the dialog says what was not saved", async () => {
+            jest.spyOn(clarivaAuth, "signInWithGoogle")
+                .mockResolvedValueOnce({ kind: "roleRequired", email: "j@gmail.com", name: "J", isExisting: false })
+                .mockImplementationOnce(async () => {
+                    ClarivaSession.instance.setAuthenticated("jwt-google", signedIn.user);
+                    return { kind: "signedIn", ...signedIn };
+                });
+            jest.spyOn(ClarivaWalletApi, "updateUser").mockRejectedValue(new Error("offline"));
+            onLoggedIn.mockRejectedValue(new Error("Could not start the client"));
+            createDialog.mockImplementation((dialog: unknown) => ({
+                finished:
+                    dialog === ClarivaGoogleRoleDialog
+                        ? Promise.resolve([true, true, { ...EMPTY_CONSULTANT_SETUP, maxCredits: "40" }])
+                        : new Promise(() => {}),
+                close: jest.fn(),
+            }));
+            renderPage({ initialMode: "signUp" });
+            await waitFor(() => expect(mockGoogleOptions).toBeDefined());
+            await act(async () => {
+                mockGoogleOptions!.onCredential("t");
+            });
+            await waitFor(() => expect(createDialog).toHaveBeenCalledWith(ErrorDialog, expect.anything()));
+            const errorCall = createDialog.mock.calls.find(([dialog]) => dialog === ErrorDialog)!;
+            const { container } = render(<>{errorCall[1].description}</>);
+            expect(container.textContent).toContain("Could not start the client");
+            expect(container.textContent).toContain(
+                "Account created, but your chat rate wasn't saved. Set it in Settings › Billing and payments.",
+            );
+        });
+
+        it("Google consultant who skipped the payout step: nothing is saved", async () => {
+            jest.spyOn(clarivaAuth, "signInWithGoogle")
+                .mockResolvedValueOnce({ kind: "roleRequired", email: "j@gmail.com", name: "J", isExisting: false })
+                .mockResolvedValueOnce({ kind: "signedIn", ...signedIn });
+            const updateUser = jest.spyOn(ClarivaWalletApi, "updateUser");
+            const saveBank = jest.spyOn(ClarivaWalletApi, "saveMyBankDetails");
+            createDialog.mockImplementation(() => ({
+                finished: Promise.resolve([true, true, null]),
+                close: jest.fn(),
+            }));
+            renderPage({ initialMode: "signUp" });
+            await waitFor(() => expect(mockGoogleOptions).toBeDefined());
+            await act(async () => {
+                mockGoogleOptions!.onCredential("t");
+            });
+            await waitFor(() => expect(onLoggedIn).toHaveBeenCalled());
+            expect(updateUser).not.toHaveBeenCalled();
+            expect(saveBank).not.toHaveBeenCalled();
         });
 
         it("from the sign-up page the first call carries mode signup (via isSignUp), the follow-up does not", async () => {
@@ -522,6 +614,7 @@ describe("ClarivaAuthPage", () => {
                 email: "new@gmail.com",
                 fromSignIn: true,
                 isExisting: false,
+                initialSetup: EMPTY_CONSULTANT_SETUP,
             });
         });
 
@@ -545,6 +638,7 @@ describe("ClarivaAuthPage", () => {
                 email: "new@gmail.com",
                 fromSignIn: false,
                 isExisting: false,
+                initialSetup: EMPTY_CONSULTANT_SETUP,
             });
         });
 
@@ -1319,9 +1413,20 @@ describe("ClarivaGoogleRoleDialog", () => {
         expect(screen.getByText(authStrings.googleRoleSubtitleWithEmail("j@gmail.com"))).toBeInTheDocument();
         expect(screen.getByTestId("clariva-role-no")).toBeChecked();
 
+        await user.click(screen.getByTestId("clariva-role-no"));
+        await user.click(screen.getByTestId("dialog-primary-button"));
+        expect(onFinished).toHaveBeenCalledWith(true, false);
+    });
+
+    it("'Yes' leads to the optional payout step instead of finishing (nothing is created yet)", async () => {
+        const onFinished = jest.fn();
+        const user = userEvent.setup();
+        render(<ClarivaGoogleRoleDialog email="j@gmail.com" onFinished={onFinished} />);
         await user.click(screen.getByTestId("clariva-role-yes"));
         await user.click(screen.getByTestId("dialog-primary-button"));
-        expect(onFinished).toHaveBeenCalledWith(true, true);
+        expect(onFinished).not.toHaveBeenCalled();
+        expect(screen.getByText(authStrings.googlePayoutSubtitleWithEmail("j@gmail.com"))).toBeInTheDocument();
+        expect(screen.getByLabelText("Max credits per chat")).toBeInTheDocument();
     });
 
     it("Cancel abandons; there is no close button", async () => {

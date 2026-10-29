@@ -64,7 +64,7 @@ import { createThumbnail } from "./utils/image-media";
 import { attachMentions, attachRelation } from "./components/views/rooms/SendMessageComposer";
 import { doMaybeLocalRoomAction } from "./utils/local-room";
 import { SdkContextClass } from "./contexts/SDKContext";
-import { isChatRestricted } from "./clariva/chat/useChatGate"; // CLARIVA: chat gate guard
+import { chatRestrictionReason } from "./clariva/chat/useChatGate"; // CLARIVA: chat gate guard
 import { showChatRestrictedNotice } from "./clariva/components/chat/gateDialogs"; // CLARIVA
 
 // scraped out of a macOS hidpi (5660ppm) screenshot png
@@ -427,8 +427,9 @@ export default class ContentMessages {
 
         // CLARIVA: a client whose composer is replaced by the "Chat restricted" bar must not slip attachments through
         // drag-and-drop / paste / the attach menu either (attachments themselves are not billed).
-        if (isChatRestricted(matrixClient.getRoom(roomId))) {
-            showChatRestrictedNotice();
+        const restriction = chatRestrictionReason(matrixClient.getRoom?.(roomId)); // getRoom?.: partial client mocks
+        if (restriction) {
+            showChatRestrictedNotice(restriction);
             return;
         }
 
@@ -545,8 +546,9 @@ export default class ContentMessages {
         promBefore?: Promise<any>,
     ): Promise<void> {
         // CLARIVA: pasted images reach this method directly (same guard as sendContentListToRoom)
-        if (isChatRestricted(matrixClient.getRoom(roomId))) {
-            showChatRestrictedNotice();
+        const restriction = chatRestrictionReason(matrixClient.getRoom?.(roomId)); // getRoom?.: partial client mocks
+        if (restriction) {
+            showChatRestrictedNotice(restriction);
             return;
         }
         const fileName = file.name || _t("common|attachment");

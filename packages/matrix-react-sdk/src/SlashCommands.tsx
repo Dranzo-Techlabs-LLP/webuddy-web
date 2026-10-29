@@ -63,8 +63,15 @@ import { deop, op } from "./slash-commands/op";
 import { CommandCategories } from "./slash-commands/interface";
 import { Command } from "./slash-commands/command";
 import { goto, join } from "./slash-commands/join";
+import { ConsultantChatNotAllowedError } from "./clariva/chat/consultantRule"; // CLARIVA: consultants only chat with clients
 
 export { CommandCategories, Command };
+
+// CLARIVA: ensureDMExists refused a consultant <-> consultant DM and already showed "Can't start chat": do not stack
+// the stock "Command error" dialog on top of it.
+function ignoreConsultantChatRefusal(e: unknown): void {
+    if (!(e instanceof ConsultantChatNotAllowedError)) throw e;
+}
 
 export const Commands = [
     new Command({
@@ -889,7 +896,7 @@ export const Commands = [
                         metricsTrigger: "SlashCommand",
                         metricsViaKeyboard: true,
                     });
-                })(),
+                })().catch(ignoreConsultantChatRefusal), // CLARIVA
             );
         },
         category: CommandCategories.actions,
@@ -919,7 +926,7 @@ export const Commands = [
                                 if (msg) {
                                     cli.sendTextMessage(roomId, msg);
                                 }
-                            })(),
+                            })().catch(ignoreConsultantChatRefusal), // CLARIVA
                         );
                     }
                 }

@@ -26,11 +26,16 @@ import { isLess } from "../money";
  *    role never restricts (fail open), and neither does a client-to-client chat.
  *
  * Lesson L1 (never regress): an unknown role, hold state, balance or rate NEVER restricts.
+ *
+ * Consultants may only chat with clients (Android ee053dc156): a DM in which BOTH roles are confirmed consultants is
+ * restricted with its own reason, "consultant-peer" (the bar says why and has no Recharge button). Either role unknown
+ * fails open, like the wallet rows.
  */
 
 /** Why the decision came out the way it did (row of the table). Only used for tests, logs and the UI hint. */
 export type GateReason =
     | "no-peer" // 1: not a DM / peer gone / members still loading
+    | "consultant-peer" // 1b: consultant <-> consultant, both confirmed: consultants only chat with clients
     | "consultant" // 2: consultants are never gated
     | "role-unknown" // 3: wait for the role (restricting by default flashed the banner for consultants)
     | "peer-not-billable" // D5: client-to-client chat, or the peer's role is unknown
@@ -52,7 +57,10 @@ export interface GateInput {
     balance: number | null;
     /** The peer's price per 24 h chat (`max_credits`), or `null` while unknown. */
     rate: number | null;
-    /** The PEER's role (`GET /v1/users/{peer}.isConsultant`), or `null` while unknown. */
+    /**
+     * The PEER's role (`GET /v1/users/{peer}.isConsultant`), or `null` while unknown. Looked up for clients (billing)
+     * and for consultants (the consultant <-> consultant rule).
+     */
     peerIsConsultant: boolean | null;
     /** `Clariva.config.bill_consultants_only` (decision D5). */
     billConsultantsOnly: boolean;
@@ -69,6 +77,8 @@ export function decideGate(input: GateInput): GateDecision {
 
     // 1. not a DM / peer gone / loading
     if (!peerId) return { restricted: false, reason: "no-peer" };
+    // 1b. consultants may only chat with clients (Android `isConsultantPeerBlocked`): both roles must be CONFIRMED
+    if (role === true && peerIsConsultant === true) return { restricted: true, reason: "consultant-peer" };
     // 2. consultants are never gated
     if (role === true) return { restricted: false, reason: "consultant" };
     // 3. unknown role: wait for it

@@ -67,6 +67,39 @@ export const authStrings = {
     consultantTitle: "I am a consultant",
     consultantSubtitle: "Consultants are paid for chats.",
 
+    // ── optional payout setup, revealed on sign-up by the consultant switch (2026-10-28) ──────────
+    setupTitle: "Set up payouts",
+    setupOptional: "Optional",
+    setupSubtitle:
+        "Add your chat rate and the bank account you're paid into. You can skip this and do it later in Settings.",
+    maxCreditsLabel: "Max credits per chat",
+    maxCreditsPlaceholder: "e.g. 50",
+    maxCreditsHelp: "What a client pays to chat with you. Leave empty to set it later.",
+    maxCreditsSuffix: "credits",
+    maxCreditsError: (min: number, max: number): string => `Enter a whole number from ${min} to ${max}`,
+    bankTitle: "Bank details",
+    bankHelp: "Used only to send you your earnings.",
+    bankIncomplete: "Fill in all the bank fields (branch is optional), or leave them all empty.",
+    accountHolderLabel: "Account holder name",
+    bankNameLabel: "Bank name",
+    bankNamePlaceholder: "e.g. State Bank of India",
+    accountNumberLabel: "Account number",
+    ifscLabel: "IFSC code",
+    ifscPlaceholder: "e.g. SBIN0001234",
+    branchLabel: "Branch name (optional)",
+    setupSkip: "Skip for now",
+    setupSkipped:
+        "Payout setup skipped. You can add your chat rate and bank details later in Settings › Billing and payments.",
+    setupResume: "Add now",
+    /** Shown once the user lands in the app when the account was made but the optional setup was not saved. */
+    setupFailedRate: "Account created, but your chat rate wasn't saved. Set it in Settings › Billing and payments.",
+    setupFailedBank: "Account created, but your bank details weren't saved. Please add them again later.",
+    setupFailedBoth: "Account created, but your chat rate and bank details weren't saved. Please add them again later.",
+    /** [WEB] title of that notice (Element toasts need one; Android's snackbar has none). */
+    setupFailedTitle: "Payout setup not saved",
+    /** [WEB] the bank fields' group label for assistive technology. */
+    setupGroupLabel: "Payout setup",
+
     // ── "Sign-in failed" dialog ───────────────────────────────────────────────────────────────────
     errorTitle: "Sign-in failed",
     errorGeneric: "Something went wrong. Please try again.",
@@ -94,6 +127,10 @@ export const authStrings = {
     googleRoleYes: "Yes",
     googleRoleYesHint: "Get paid for the chats you take.",
     googleRoleConfirm: "Continue",
+    // Google sign-up, consultant: the optional payout step after the role question.
+    googlePayoutSubtitleWithEmail: (email: string): string =>
+        `Signing up ${email} as a consultant. Add your chat rate and the bank account you're paid into, or skip and do it later in Settings.`,
+    googlePayoutBack: "Back",
 
     // ── Google unavailable ([N]: the script was blocked / never arrived / drew nothing) ───────────
     googleUnavailableTitle: "Google sign-in isn't available",

@@ -157,6 +157,15 @@ export function isChatRestricted(room: Room | null | undefined): boolean {
 }
 
 /**
+ * Why this room's composer is replaced by a bar, or null when it is not: the guards without a bar (forward,
+ * drag-and-drop, paste) word their notice after it ("consultant-peer" is not a wallet problem).
+ */
+export function chatRestrictionReason(room: Room | null | undefined): GateReason | null {
+    const gate = evaluateChatGate(room);
+    return gate.restricted ? gate.reason : null;
+}
+
+/**
  * The chat gate for a room (spec 03 §3.2/§3.3). Seeded synchronously from the WalletStore caches, revalidated
  * concurrently and re-polled for confirmed clients by the shared `ChatGateController`; the decision itself is the
  * pure `decideGate`. Dormant (always "not restricted", no timers, no requests) when Clariva is disabled and in every

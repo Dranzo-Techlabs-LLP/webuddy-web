@@ -29,6 +29,7 @@ import { UPDATE_EVENT } from "../../../stores/AsyncStore";
 import { SdkContextClass } from "../../../contexts/SDKContext";
 import DMRoomMap from "../../../utils/DMRoomMap";
 import { chatsStrings as S } from "../../strings/chats";
+import { clarivaHidesGroupRooms } from "../../chat/groupRooms";
 
 /** The chips of the Chats home (Android `RoomListFilter`, same order). */
 export enum ChatFilter {
@@ -55,6 +56,14 @@ export const CHAT_FILTER_LABELS: Readonly<Record<ChatFilter, string>> = {
     [ChatFilter.Invites]: S.filterInvites,
 };
 
+/**
+ * The chips on offer (Android `DefaultFilterSelectionStrategy.availableFilters`): every one, minus "Rooms" while group
+ * rooms are off. The `ChatFilter.Rooms` entry itself stays, like Android's enum entry.
+ */
+export function availableChatFilters(groupRooms = !clarivaHidesGroupRooms()): ChatFilter[] {
+    return groupRooms ? [...CHAT_FILTER_ORDER] : CHAT_FILTER_ORDER.filter((f) => f !== ChatFilter.Rooms);
+}
+
 /** Android `RoomListFilter.incompatibleFilters`: selecting a chip drops these, and they are not offered meanwhile. */
 const INCOMPATIBLE: Readonly<Record<ChatFilter, readonly ChatFilter[]>> = {
     [ChatFilter.Rooms]: [ChatFilter.People, ChatFilter.Invites],
@@ -77,10 +86,13 @@ export function toggleChatFilter(selected: ReadonlySet<ChatFilter>, filter: Chat
  * The chips to render, Android's order: the selected ones first (in selection order), then the unselected ones that
  * are still compatible with the selection.
  */
-export function visibleChatFilters(selected: ReadonlySet<ChatFilter>): ChatFilter[] {
+export function visibleChatFilters(
+    selected: ReadonlySet<ChatFilter>,
+    available: readonly ChatFilter[] = availableChatFilters(),
+): ChatFilter[] {
     const hidden = new Set<ChatFilter>();
     for (const filter of selected) for (const other of INCOMPATIBLE[filter]) hidden.add(other);
-    const rest = CHAT_FILTER_ORDER.filter((f) => !selected.has(f) && !hidden.has(f));
+    const rest = available.filter((f) => !selected.has(f) && !hidden.has(f));
     return [...selected, ...rest];
 }
 
@@ -215,6 +227,8 @@ export class ClarivaChatFilterStore extends EventEmitter {
     }
 
     public toggle(filter: ChatFilter): void {
+        // Android `select`: a chip that is not on offer (Rooms while group rooms are off) cannot be selected.
+        if (!availableChatFilters().includes(filter) && !this.selectedFilters.has(filter)) return;
         this.setSelected(toggleChatFilter(this.selectedFilters, filter));
     }
 

@@ -53,6 +53,7 @@ import SettingsStore from "./settings/SettingsStore";
 import { MEGOLM_ENCRYPTION_ALGORITHM } from "./utils/crypto";
 import { isClarivaEnabled } from "./clariva/config"; // CLARIVA: Android DM creation parameters (spec 04 §3.16)
 import { withClarivaDmPowerLevels } from "./clariva/qr/dmOptions"; // CLARIVA
+import { ConsultantChatNotAllowedError, refuseConsultantDm } from "./clariva/chat/consultantRule"; // CLARIVA
 
 // we define a number of interfaces which take their names from the js-sdk
 /* eslint-disable camelcase */
@@ -479,6 +480,10 @@ export async function ensureDMExists(client: MatrixClient, userId: string): Prom
     if (existingDMRoom) {
         roomId = existingDMRoom.roomId;
     } else {
+        // CLARIVA: never CREATE a consultant <-> consultant DM (Android DefaultStartDMAction guards every caller that
+        // asks to create directly: /msg, /query, verification...). The "Can't start chat" warning has been shown.
+        if (await refuseConsultantDm(client.getUserId(), [userId])) throw new ConsultantChatNotAllowedError();
+
         let encryption: boolean | undefined;
         if (privateShouldBeEncrypted(client)) {
             encryption = await canEncryptToAllUsers(client, [userId]);

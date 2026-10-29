@@ -70,6 +70,7 @@ import { ViewHomePagePayload } from "../../dispatcher/payloads/ViewHomePagePaylo
 import { SwitchSpacePayload } from "../../dispatcher/payloads/SwitchSpacePayload";
 import { AfterLeaveRoomPayload } from "../../dispatcher/payloads/AfterLeaveRoomPayload";
 import { SdkContextClass } from "../../contexts/SDKContext";
+import { clarivaHidesGroupRooms } from "../../clariva/chat/groupRooms"; // CLARIVA: no spaces yet
 
 interface IState {}
 
@@ -197,7 +198,8 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     }
 
     public get allRoomsInHome(): boolean {
-        return this._allRoomsInHome;
+        // CLARIVA: spaces cannot be opened while group rooms are off, so Home must list rooms inside spaces too
+        return this._allRoomsInHome || clarivaHidesGroupRooms();
     }
 
     public setActiveRoomInSpace(space: SpaceKey): void {
@@ -245,6 +247,9 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
 
         let cliSpace: Room | null = null;
         if (!isMetaSpace(space)) {
+            // CLARIVA: while group rooms (and spaces) are off only the meta spaces can be active (Android forces its
+            // Chats tab), so a restored or implicit space selection can never strand the user in a hidden space.
+            if (clarivaHidesGroupRooms()) return;
             cliSpace = this.matrixClient.getRoom(space);
             if (!cliSpace?.isSpaceRoom()) return;
         } else if (!this.enabledMetaSpaces.includes(space as MetaSpace)) {
@@ -1274,7 +1279,8 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
                 switch (payload.settingName) {
                     case "Spaces.allRoomsInHome": {
                         const newValue = SettingsStore.getValue("Spaces.allRoomsInHome");
-                        if (this.allRoomsInHome !== newValue) {
+                        if (this._allRoomsInHome !== newValue) {
+                            // CLARIVA: compare the setting itself; the getter may be forced on
                             this._allRoomsInHome = newValue;
                             this.emit(UPDATE_HOME_BEHAVIOUR, this.allRoomsInHome);
                             if (this.enabledMetaSpaces.includes(MetaSpace.Home)) {

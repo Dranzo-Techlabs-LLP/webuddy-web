@@ -33,6 +33,7 @@ import CryptographyPanel from "../../CryptographyPanel";
 import SettingsFlag from "../../../elements/SettingsFlag";
 import CrossSigningPanel from "../../CrossSigningPanel";
 import { isClarivaEnabled } from "../../../../../clariva/config"; // CLARIVA
+import { ClarivaLastSeenSettings } from "../../../../../clariva/components/settings/LastSeenSettings"; // CLARIVA
 import EventIndexPanel from "../../EventIndexPanel";
 import InlineSpinner from "../../../elements/InlineSpinner";
 import { PosthogAnalytics } from "../../../../../PosthogAnalytics";
@@ -375,6 +376,8 @@ export default class SecurityUserSettingsTab extends React.Component<IProps, ISt
         return (
             <SettingsTab>
                 {warning}
+                {/* CLARIVA: "Last seen and online" (renders nothing unless Clariva is configured) */}
+                <ClarivaLastSeenSettings />
                 <SetIntegrationManager />
                 <SettingsSection heading={_t("settings|security|encryption_section")}>
                     {/* CLARIVA: Secure Backup and cross-signing reset would replace the account's shared key storage */}

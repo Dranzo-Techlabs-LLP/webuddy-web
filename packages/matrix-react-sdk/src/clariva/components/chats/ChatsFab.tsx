@@ -34,8 +34,8 @@ export function ClarivaChatsFab(): JSX.Element | null {
             type="button"
             className="mx_ClarivaChatsFab"
             onClick={startChat}
-            aria-label={S.startChat}
-            title={S.startChat}
+            aria-label={S.startNewChat}
+            title={S.startNewChat}
             data-testid="clariva-chats-fab"
         >
             <PlusIcon width="28px" height="28px" aria-hidden="true" />

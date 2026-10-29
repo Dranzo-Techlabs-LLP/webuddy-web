@@ -24,8 +24,8 @@ interface Props {
     room: Room;
     /**
      * Render the composer. `restrictedBar` is `null` when the chat is open (always the case when Clariva is disabled,
-     * in non-DM rooms and for consultants) and the ready-made "Chat restricted" bar when the composer must be
-     * replaced.
+     * in non-DM rooms and for consultants chatting with clients) and the ready-made "Chat restricted" bar (or the
+     * consultant <-> consultant one) when the composer must be replaced.
      */
     children: (restrictedBar: ReactNode | null) => ReactNode;
 }
@@ -36,6 +36,12 @@ interface Props {
  */
 export function ClarivaComposerGate({ room, children }: Props): JSX.Element {
     const gate = useChatGate(room);
-    const bar = gate.restricted ? <ChatRestrictedBar credits={gate.balance} required={gate.rate} /> : null;
+    const bar = gate.restricted ? (
+        <ChatRestrictedBar
+            credits={gate.balance}
+            required={gate.rate}
+            consultantPeer={gate.reason === "consultant-peer"}
+        />
+    ) : null;
     return <>{children(bar)}</>;
 }

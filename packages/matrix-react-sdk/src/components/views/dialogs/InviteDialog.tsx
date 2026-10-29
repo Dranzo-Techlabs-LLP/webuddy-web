@@ -79,6 +79,7 @@ import { isUnresolvedMember, memberFromRow } from "../../../clariva/qr/members";
 import { getUserShareLink, searchQueryFor } from "../../../clariva/qr/links"; // CLARIVA
 import { StartChatQrActions } from "../../../clariva/components/qr/StartChatQrActions"; // CLARIVA
 import { qrStrings } from "../../../clariva/strings/qr"; // CLARIVA
+import { clarivaHidesGroupRooms } from "../../../clariva/chat/groupRooms"; // CLARIVA: no group chats yet
 
 // we have a number of types defined from the Matrix spec which can't reasonably be altered here.
 /* eslint-disable camelcase */
@@ -570,7 +571,9 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
         // Check to see if there's anything to convert first
         if (!this.state.filterText || !this.state.filterText.includes("@")) return this.state.targets || [];
 
-        if (!this.canInviteMore()) {
+        // CLARIVA: while group rooms are off a typed address replaces the selection instead of adding a second pill
+        const baseTargets = this.clarivaSingleTarget() ? [] : this.state.targets || [];
+        if (!this.canInviteMore(baseTargets)) {
             // There should only be one third-party invite → do not allow more targets
             return this.state.targets;
         }
@@ -587,9 +590,14 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
         }
         if (!newMember) return this.state.targets;
 
-        const newTargets = [...(this.state.targets || []), newMember];
+        const newTargets = [...baseTargets, newMember]; // CLARIVA: baseTargets
         this.setState({ targets: newTargets, filterText: "" });
         return newTargets;
+    }
+
+    /** CLARIVA: Start chat is single-selection while group rooms are off (Android `SelectionMode.Single`). */
+    private clarivaSingleTarget(): boolean {
+        return this.props.kind === InviteKind.Dm && clarivaHidesGroupRooms();
     }
 
     /**
@@ -894,8 +902,8 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
             if (idx >= 0) {
                 targets.splice(idx, 1);
             } else {
-                if (this.props.kind === InviteKind.CallTransfer && targets.length > 0) {
-                    targets = [];
+                if ((this.props.kind === InviteKind.CallTransfer || this.clarivaSingleTarget()) && targets.length > 0) {
+                    targets = []; // CLARIVA: + Start chat picks one user while group rooms are off
                 }
                 targets.push(member);
                 filterText = ""; // clear the filter when the user accepts a suggestion
@@ -1012,7 +1020,10 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
             });
         }
 
-        if (unableToAddMore) {
+        if (this.clarivaSingleTarget() && toAdd.length > 0) {
+            // CLARIVA: one user per chat while group rooms are off: the first pasted address replaces the selection
+            this.setState({ targets: toAdd.slice(0, 1) });
+        } else if (unableToAddMore) {
             this.setState({
                 filterText: unableToAddMore.join(" "),
                 targets: uniqBy([...this.state.targets, ...toAdd], (t) => t.userId),

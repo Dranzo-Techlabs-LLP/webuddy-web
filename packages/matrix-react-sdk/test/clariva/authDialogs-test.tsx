@@ -101,6 +101,16 @@ describe("ClarivaLogoutDialog (spec 01 §2.7)", () => {
         expect(onFinished).toHaveBeenCalledWith(true);
     });
 
+    it("closes every open dialog (e.g. Settings, where Sign out lives) before logging out", async () => {
+        const dispatch = jest.spyOn(dis, "dispatch").mockImplementation(() => {});
+        const closeAll = jest.spyOn(Modal, "forceCloseAllModals");
+        render(<ClarivaLogoutDialog onFinished={jest.fn()} />);
+        await userEvent.setup().click(screen.getByRole("button", { name: "Sign out" }));
+        expect(closeAll).toHaveBeenCalled();
+        expect(closeAll.mock.invocationCallOrder[0]).toBeLessThan(dispatch.mock.invocationCallOrder[0]);
+        closeAll.mockRestore();
+    });
+
     it("Cancel does not log out", async () => {
         const dispatch = jest.spyOn(dis, "dispatch").mockImplementation(() => {});
         const onFinished = jest.fn();

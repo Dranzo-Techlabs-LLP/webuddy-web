@@ -33,8 +33,10 @@ export const chatsStrings = {
     /** [A] `screen_roomlist_clear_filters`. */
     clearFilters: "Clear filters",
 
-    /** [WEB] label of the round "+" button (mobile) and of the empty-state action. */
+    /** [WEB] label of the empty-state action. */
     startChat: "Start chat",
+    /** [A] `screen_roomlist_a11y_create_message`: the round "+" button (mobile) and the list header's "+". */
+    startNewChat: "Start a new chat",
     startAChat: "Start a chat",
 
     /** [A] `screen_roomlist_empty_title` / `_message` (no chats at all). */

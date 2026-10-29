@@ -197,28 +197,58 @@ limitations under the License.
     }
 }
 
-/* line two of the header: the role badge, then the presence line */
-:root[data-clariva] .mx_ClarivaRoomHeader_sub {
-    display: flex;
+/* A 1:1 chat's title, WhatsApp-style (Android MessagesViewTopBar): the name and the designation badge on line one, the
+   presence on a line of its own so "last seen yesterday at 10:45 PM" gets the full width. The badge and the presence
+   come in one wrapper (RoomHeaderSubtitle) that steps aside (display: contents) so the grid places both. The name's
+   track is minmax(0, max-content): the badge keeps its capped width and the name gives way first. */
+:root[data-clariva] .mx_RoomHeader .mx_RoomHeader_info:has(> .mx_ClarivaRoomHeader_sub) {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) auto;
+    justify-content: start;
     align-items: center;
-    gap: var(--cpd-space-2x);
-    min-width: 0;
-    margin-top: 2px;
+    column-gap: 6px;
+
+    > .mx_RoomHeader_heading {
+        grid-column: 1;
+        grid-row: 1;
+        min-width: 0;
+    }
+}
+
+:root[data-clariva] .mx_ClarivaRoomHeader_sub {
+    display: contents;
     font: var(--cpd-font-body-sm-regular);
     color: var(--cg-text);
     white-space: nowrap;
+
+    > .mx_ClarivaRoleBadge {
+        grid-column: 2;
+        grid-row: 1;
+        justify-self: start;
+    }
 }
 
 :root[data-clariva] .mx_ClarivaRoomHeader_presence {
-    display: inline-flex;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
     align-items: center;
     min-width: 0;
+    margin-top: 1px;
     overflow: hidden;
-    text-overflow: ellipsis;
     color: var(--cg-text);
+    font: var(--cpd-font-body-sm-regular);
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
-/* a small dot says "online" next to the word (the word is the information, the dot is a hint) */
+/* Android colours the word "online" in its success colour. The header is floating chrome, so its words stay --cg-text
+   (rule 7: --cg-teal-text falls under 4.5:1 here over white or black content); "online" is set apart by weight, and the
+   accent colour goes on a small dot next to the word (the word is the information, the dot is a hint) */
+:root[data-clariva] .mx_ClarivaRoomHeader_presence[data-presence="online"] {
+    font: var(--cpd-font-body-sm-semibold);
+}
+
 :root[data-clariva] .mx_ClarivaRoomHeader_presence[data-presence="online"]::before {
     content: "";
     flex: 0 0 auto;
@@ -245,9 +275,20 @@ limitations under the License.
     font: 600 var(--cg-fs-xs) / 16px var(--cg-font-ui);
     white-space: nowrap;
 
+    /* a designation is the consultant's own words: capped, one line, "..." (the full text is the tooltip) */
+    max-width: 140px;
+    min-width: 0;
+    box-sizing: border-box;
+
     .mx_ClarivaRoleBadge_icon {
         flex: 0 0 auto;
         color: var(--cg-text);
+    }
+
+    .mx_ClarivaRoleBadge_text {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 }
 
@@ -1221,6 +1262,8 @@ limitations under the License.
     }
 
     .mx_ClarivaRoleBadge {
+        /* the card has room for a longer designation than the header */
+        max-width: min(100%, 280px);
         padding: 3px var(--cpd-space-3x) 3px var(--cpd-space-2x);
         color: var(--cg-teal-text);
         font-size: var(--cg-fs-sm);

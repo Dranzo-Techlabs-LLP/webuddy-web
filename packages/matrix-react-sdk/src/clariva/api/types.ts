@@ -150,6 +150,11 @@ export interface WalletCreateUserRequest {
 export interface WalletUpdateUserRequest {
     max_credits?: number;
     isConsultant?: RoleFlag;
+    /**
+     * Free-form per-user JSON (designation, "Last seen and online" choice, ...). The server REPLACES the whole object,
+     * so callers always send the merged object (see `WalletStore.updateSettings`).
+     */
+    settings?: Record<string, unknown>;
 }
 
 // ───────────────────────────── /v1/wallet ─────────────────────────────
@@ -317,11 +322,34 @@ export interface CallTypeResponse {
     updatedAt?: string | null;
 }
 
-export interface BankDetailsBody {
-    expertId: string;
+// ─────────────────────── /v1/experts/me/bank-details ───────────────────────
+// Consultants only. Authorised by a Bearer token: the Clariva JWT (in memory right after sign-in / sign-up) OR the
+// session's Matrix access token (verified by the API with the homeserver's whoami). Whose account it is comes from
+// the token, never from the body. Mirrors Android `BankDetails.kt` / the API's `AddMyBankDetailDto`.
+
+/** Body of `POST /v1/experts/me/bank-details`. */
+export interface MyBankDetailsBody {
+    accountHolderName: string;
     bankName: string;
+    /** 9 to 18 digits. */
     accountNumber: string;
+    /** `ABCD0123456`, upper case. Looked up server-side: an unknown IFSC is rejected with 400. */
+    ifscCode: string;
+    /** Optional; omitted rather than sent blank. The API fills it in from the IFSC directory when missing. */
+    branchName?: string;
+}
+
+/** The saved payout account as the API returns it: never the full account number. */
+export interface SavedBankAccount {
+    id?: string | null;
+    bankName: string;
+    accountNumberLast4: string;
     ifscCode: string;
     accountHolderName: string;
-    branchName?: string;
+    branchName?: string | null;
+}
+
+/** `GET /v1/experts/me/bank-details`: `bankDetail` is `null` until a payout account has been saved. */
+export interface MyBankAccountResponse {
+    bankDetail: SavedBankAccount | null;
 }

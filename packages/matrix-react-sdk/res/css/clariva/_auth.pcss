@@ -954,3 +954,134 @@ limitations under the License.
         height: 34px;
     }
 }
+
+/* ── optional payout setup: revealed under "I am a consultant" on sign-up, and the Google payout step ──────────── */
+
+/* the switch and its setup read as one choice: the setup panel hangs directly under the switch tile */
+.mx_ClarivaSetup {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-2x);
+}
+
+.mx_ClarivaSetup_panel {
+    @mixin cg-inset;
+
+    padding: var(--cpd-space-4x);
+    border-radius: var(--cg-r-md);
+}
+
+.mx_ClarivaSetup_fields,
+.mx_ClarivaSetup_bank {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-3x);
+}
+
+.mx_ClarivaSetup_bank {
+    margin-top: var(--cpd-space-2x);
+}
+
+.mx_ClarivaSetup_header,
+.mx_ClarivaSetup_bankHeader {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-1x);
+}
+
+.mx_ClarivaSetup_titleRow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--cpd-space-2x);
+}
+
+.mx_ClarivaSetup_title {
+    margin: 0;
+    color: var(--cg-text);
+    font-size: var(--cg-fs-lg);
+    font-weight: 600;
+}
+
+/* "Optional": a quiet pill, never a call to action */
+.mx_ClarivaSetup_optional {
+    align-self: flex-start;
+    padding: 2px var(--cpd-space-2x);
+    border: 1px solid var(--cg-line);
+    border-radius: var(--cg-r-pill);
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-xs);
+    font-weight: 500;
+}
+
+.mx_ClarivaSetup_subtitle,
+.mx_ClarivaSetup_bankHelp {
+    margin: 0;
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-sm);
+    line-height: 1.45;
+}
+
+.mx_ClarivaSetup_bankTitle {
+    display: flex;
+    align-items: center;
+    gap: var(--cpd-space-1-5x);
+    margin: 0;
+    color: var(--cg-text);
+    font-size: var(--cg-fs-md);
+    font-weight: 600;
+
+    svg {
+        flex: none;
+        width: 16px;
+        height: 16px;
+        color: var(--cg-text-2);
+    }
+}
+
+/* "credits" after the number, inside the input tile */
+.mx_ClarivaSetup_suffix {
+    flex: none;
+    padding-inline-end: var(--cpd-space-3x);
+    color: var(--cg-text-2);
+    font-size: var(--cg-fs-md);
+}
+
+.mx_ClarivaSetup_incomplete,
+.mx_ClarivaSetup_skippedText {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--cpd-space-2x);
+    margin: 0;
+    font-size: var(--cg-fs-sm);
+    line-height: 1.45;
+
+    svg {
+        flex: none;
+        width: 16px;
+        height: 16px;
+        margin-top: 1px;
+    }
+}
+
+.mx_ClarivaSetup_incomplete {
+    color: var(--cg-coral-text);
+}
+
+.mx_ClarivaSetup_skippedText {
+    color: var(--cg-text-2);
+}
+
+.mx_ClarivaSetup_actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* the Google payout step: a long form, so the content scrolls inside the dialog instead of the page */
+.mx_ClarivaPayoutDialog .mx_ClarivaDialog_content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cpd-space-4x);
+    max-height: min(60vh, 560px);
+    overflow-y: auto;
+}

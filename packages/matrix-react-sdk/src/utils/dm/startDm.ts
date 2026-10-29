@@ -26,6 +26,8 @@ import { findDMForUser } from "./findDMForUser";
 import dis from "../../dispatcher/dispatcher";
 import { getAddressType } from "../../UserAddress";
 import createRoom, { IOpts } from "../../createRoom";
+import { ConsultantChatNotAllowedError, refuseConsultantDm } from "../../clariva/chat/consultantRule"; // CLARIVA
+import { refuseGroupDm } from "../../clariva/chat/groupRooms"; // CLARIVA
 
 /**
  * Start a DM.
@@ -52,6 +54,11 @@ export async function startDm(client: MatrixClient, targets: Member[], showSpinn
         });
         return Promise.resolve(existingRoom.roomId);
     }
+
+    // CLARIVA: consultants may only chat with clients, so never CREATE a consultant <-> consultant DM (Android
+    // DefaultStartDMAction guards `createIfDmDoesNotExist` the same way). The warning has been shown.
+    refuseGroupDm(targetIds); // and no multi-person "DM" (a group room) while group rooms are off
+    if (await refuseConsultantDm(client.getUserId(), targetIds)) throw new ConsultantChatNotAllowedError();
 
     const createRoomOptions: IOpts = { inlineErrors: true };
 

@@ -65,6 +65,7 @@ import { getKeyBindingsManager } from "../../../KeyBindingsManager";
 import AccessibleButton from "../elements/AccessibleButton";
 import { Landmark, LandmarkNavigation } from "../../../accessibility/LandmarkNavigation";
 import { isClarivaEnabled } from "../../../clariva/config"; // CLARIVA: flat Chats list
+import { clarivaHidesGroupRooms } from "../../../clariva/chat/groupRooms"; // CLARIVA: no group rooms yet
 
 interface IProps {
     onKeyDown: (ev: React.KeyboardEvent, state: IRovingTabIndexState) => void;
@@ -216,6 +217,9 @@ const UntaggedAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex }) => {
 
     const videoRoomsEnabled = useFeatureEnabled("feature_video_rooms");
     const elementCallVideoRoomsEnabled = useFeatureEnabled("feature_element_call_video_rooms");
+
+    // CLARIVA: the Rooms section's "+" only offers group-room actions (new room, explore, add existing room)
+    if (clarivaHidesGroupRooms()) return null;
 
     let contextMenuContent: JSX.Element | undefined;
     if (menuDisplayed && activeSpace) {

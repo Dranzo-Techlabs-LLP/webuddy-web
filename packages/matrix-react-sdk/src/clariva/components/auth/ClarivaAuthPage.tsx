@@ -59,9 +59,28 @@ import {
     submitEnabled,
     usernameSupportText,
 } from "../../session/authForm";
+import {
+    type ConsultantSetupForm,
+    EMPTY_CONSULTANT_SETUP,
+    isSetupReady,
+    maxCreditsValue,
+    resumeSetup,
+    saveConsultantSetup,
+    type SetupSaveFailure,
+    setupFailureText,
+    setupToSave,
+    showSetupFailure,
+    skipSetup,
+    unsavedSetupFailure,
+    withSetupField,
+} from "../../session/consultantSetup";
+import { WalletStore } from "../../stores/WalletStore";
 import { authStrings, DEFAULT_MATRIX_SERVER_NAME } from "../../strings/auth";
+import { applyIfscAutofill, type IfscAutofill } from "../../wallet/bankDetails";
+import { ifscBlocksSave, useIfscLookup } from "../../wallet/ifsc";
 import { ClarivaAurora } from "../../ui";
 import { AuthField, PasswordField, SwitchRow } from "./fields";
+import { ConsultantSetupFields, SkippedSetup } from "./ConsultantSetupFields";
 import { authFooterLinks, displayVersion } from "./authFooter";
 import { ClarivaLogo } from "./ClarivaLogo";
 import { ClarivaGoogleButton } from "./ClarivaGoogleButton";
@@ -131,6 +150,40 @@ function showErrorDialog(description: string): void {
     });
 }
 
+interface PendingSetupSave {
+    result: Promise<SetupSaveFailure>;
+    /** A chat rate was asked for (so a saved one must reach the wallet store). */
+    savesRate: boolean;
+}
+
+/**
+ * Start saving the optional consultant setup once the account exists. The JWT is read NOW: `complete()` drops it.
+ * Runs alongside opening the session, so it never delays signing in (Android awaits it, bounded, before the import).
+ */
+function startSetupSave(matrixUserId: string, setup: ConsultantSetupForm | null): PendingSetupSave | null {
+    if (!setup) return null;
+    return {
+        result: saveConsultantSetup({ matrixUserId, jwt: ClarivaSession.instance.jwt, setup }),
+        savesRate: maxCreditsValue(setup) !== null,
+    };
+}
+
+/**
+ * After sign-in completed (the client has started): say what the setup did not save, once. A saved chat rate is
+ * re-read into the wallet store (Android's `updateMaxCredits` writes its own cache): the store's first read ran
+ * alongside the save and may predate it. Twice, because the first call joins a read that may still be in flight.
+ */
+function reportSetupSave(pending: PendingSetupSave | null): void {
+    if (!pending) return;
+    void pending.result.then((failure) => {
+        showSetupFailure(failure);
+        if (pending.savesRate && failure !== "rate" && failure !== "both") {
+            const wallet = WalletStore.instance;
+            void wallet.refreshBalance().then(() => wallet.refreshBalance());
+        }
+    });
+}
+
 /** The longest foreign (non-API) error text shown to the user; the full error goes to the log. */
 const MAX_SHOWN_ERROR_LENGTH = 200;
 
@@ -166,6 +219,11 @@ export const ClarivaAuthPage: React.FC<ClarivaAuthPageProps> = ({
     const [name, setName] = useState("");
     const [username, setUsername] = useState("");
     const [isConsultant, setIsConsultant] = useState(false);
+    // Typed values are kept even if the switch goes off, so flipping it back does not lose them; they are only ever
+    // saved for a consultant.
+    const [setup, setSetup] = useState<ConsultantSetupForm>(EMPTY_CONSULTANT_SETUP);
+    // What the last IFSC lookup filled in, so a new IFSC can replace it but never a value the user typed.
+    const ifscAutofill = useRef<IfscAutofill | null>(null);
     const [loading, setLoading] = useState(false);
     const [notice, setNotice] = useState<string | null>(() => takeLandingNotice());
     // Why Google's button is missing, once it has been found to be unusable (the form keeps working regardless).
@@ -220,6 +278,15 @@ export const ClarivaAuthPage: React.FC<ClarivaAuthPageProps> = ({
         mode === "signUp" && looksLikeEmail(email),
     );
 
+    // Only while the payout fields are on screen: a third-party lookup for a code nobody can see would be wasted.
+    const setupShown = mode === "signUp" && isConsultant && !setup.isSkipped;
+    const ifscStatus = useIfscLookup(setupShown ? setup.ifscCode : "", (branch) => {
+        const found = { bank: branch.bank, branch: branch.branch };
+        const previous = ifscAutofill.current;
+        setSetup((s) => applyIfscAutofill(s, found, previous));
+        ifscAutofill.current = found;
+    });
+
     const canSubmit = submitEnabled({
         mode,
         email,
@@ -229,6 +296,8 @@ export const ClarivaAuthPage: React.FC<ClarivaAuthPageProps> = ({
         usernameAvailability: usernameAvailability.state,
         emailAvailability: emailAvailability.state,
         isLoading: loading,
+        isConsultant,
+        consultantSetupReady: isSetupReady(setup, ifscBlocksSave(ifscStatus)),
     });
 
     const release = useCallback((): void => {
@@ -260,23 +329,31 @@ export const ClarivaAuthPage: React.FC<ClarivaAuthPageProps> = ({
     /**
      * Sign-up created the account but the session could not be opened: a second "Create account" would 409, so go to
      * sign-in with the e-mail prefilled (spec 01 §7.3 #12). Network-level failures get exactly one automatic retry.
+     * The consultant setup typed for this sign-up (`toSave`) is saved once the retry opens the session; when it
+     * cannot be, the dialog says what was not saved, so it is never dropped silently.
      */
     const recoverFromHalfSignUp = useCallback(
-        async (error: ClarivaAuthError): Promise<boolean> => {
+        async (error: ClarivaAuthError, toSave: ConsultantSetupForm | null): Promise<boolean> => {
+            let pending: PendingSetupSave | null = null;
             if (error.status === 0) {
                 try {
                     const retried: ClarivaSignedIn = await clarivaAuth.resumeMatrixSession();
+                    pending = startSetupSave(retried.credentials.matrixUserId, toSave);
                     await complete(retried.credentials);
+                    reportSetupSave(pending);
                     return true;
                 } catch (e) {
                     error = mapAuthError(e);
                 }
             }
+            // A save started before opening the session failed has its own (bounded) answer; otherwise nothing ran.
+            const unsaved = pending ? await pending.result : unsavedSetupFailure(toSave);
             if (mounted.current) {
                 setMode("signIn");
                 setPassword("");
             }
-            showErrorDialog(`${error.message}\n${authStrings.accountCreatedSignIn}`);
+            const lines = [error.message, authStrings.accountCreatedSignIn, setupFailureText(unsaved)];
+            showErrorDialog(lines.filter((line): line is string => !!line).join("\n"));
             return false;
         },
         [complete],
@@ -288,6 +365,10 @@ export const ClarivaAuthPage: React.FC<ClarivaAuthPageProps> = ({
         setLoading(true);
         ClarivaSession.instance.clear(); // so "jwt present" below means "this attempt got past step one"
         const signingUp = mode === "signUp";
+        // Captured now: only a consultant signing up has anything to save, and only what was typed and not skipped.
+        const toSave = signingUp ? setupToSave(isConsultant, setup) : null;
+        // Set once the account exists; if opening the session then fails, its outcome still goes into the error.
+        let pendingSetup: PendingSetupSave | null = null;
         try {
             const signedIn = signingUp
                 ? await clarivaAuth.signUpWithEmail({
@@ -298,16 +379,25 @@ export const ClarivaAuthPage: React.FC<ClarivaAuthPageProps> = ({
                       isConsultant,
                   })
                 : await clarivaAuth.signInWithEmail(email, password);
+            // The account exists either way, so a failure here never blocks signing in.
+            pendingSetup = startSetupSave(signedIn.credentials.matrixUserId, toSave);
             await complete(signedIn.credentials);
+            reportSetupSave(pendingSetup);
         } catch (e) {
             logger.warn("Clariva: sign-in failed", e instanceof ClarivaAuthError ? e.status : undefined);
             const error =
                 e instanceof ClarivaAuthError ? e : new ClarivaAuthError(e instanceof Error ? e.message : "", 0, e);
             if (signingUp && ClarivaSession.instance.jwt) {
-                const ok = await recoverFromHalfSignUp(error);
-                if (ok) return;
+                // the JWT is still held, so `complete()` never ran: the setup was not started yet
+                if (await recoverFromHalfSignUp(error, toSave)) return;
             } else {
-                showErrorDialog(signInFailureText(error.message, error.status, !signingUp, googleAvailableRef.current));
+                // the client did not start, so no toast: what the setup did not save goes into this dialog
+                const unsaved = pendingSetup ? await pendingSetup.result : null;
+                const lines = [
+                    signInFailureText(error.message, error.status, !signingUp, googleAvailableRef.current),
+                    setupFailureText(unsaved),
+                ];
+                showErrorDialog(lines.filter((l): l is string => !!l).join("\n"));
             }
             release();
         }
@@ -320,34 +410,49 @@ export const ClarivaAuthPage: React.FC<ClarivaAuthPageProps> = ({
         setLoading(true);
         ClarivaSession.instance.clear();
         const startedFromSignUp = renderedText === "signup_with";
+        let pendingSetup: PendingSetupSave | null = null;
         try {
             let outcome = await clarivaAuth.signInWithGoogle({
                 idToken,
                 isConsultant: null,
                 isSignUp: startedFromSignUp,
             });
+            let toSave: ConsultantSetupForm | null = null;
             if (outcome.kind === "roleRequired") {
-                // Two-step: nothing has been created yet. Ask, then repeat WITHOUT `mode: "signup"`.
+                // Two-step: nothing has been created yet. Ask (and, for a consultant, the optional payout step), then
+                // repeat WITHOUT `mode: "signup"`.
                 const { finished } = Modal.createDialog(
                     ClarivaGoogleRoleDialog,
-                    { email: outcome.email, fromSignIn: !startedFromSignUp, isExisting: outcome.isExisting },
+                    {
+                        email: outcome.email,
+                        name: outcome.name,
+                        fromSignIn: !startedFromSignUp,
+                        isExisting: outcome.isExisting,
+                        // what was typed on the e-mail form carries over (Android shares one setup state)
+                        initialSetup: setup,
+                    },
                     undefined,
                     false,
                     false,
                     { onBeforeClose: async (reason) => reason !== "backgroundClick" },
                 );
-                const [confirmed, consultant] = await finished;
+                const [confirmed, consultant, payoutSetup] = await finished;
                 if (!confirmed) {
                     release();
                     return;
                 }
+                toSave = payoutSetup ? setupToSave(!!consultant, payoutSetup) : null;
                 outcome = await clarivaAuth.signInWithGoogle({ idToken, isConsultant: !!consultant });
             }
             if (outcome.kind !== "signedIn") throw new ClarivaAuthError(AUTH_STRINGS.roleLoop);
+            pendingSetup = startSetupSave(outcome.credentials.matrixUserId, toSave);
             await complete(outcome.credentials);
+            reportSetupSave(pendingSetup);
         } catch (e) {
             logger.warn("Clariva: Google sign-in failed", e instanceof ClarivaAuthError ? e.status : e);
-            showErrorDialog(googleFailureText(e));
+            const unsaved = pendingSetup ? await pendingSetup.result : null;
+            const lines = [googleFailureText(e), setupFailureText(unsaved)];
+            showErrorDialog(lines.filter((l): l is string => !!l).join("\n"));
             release();
         }
     };
@@ -486,15 +591,44 @@ export const ClarivaAuthPage: React.FC<ClarivaAuthPageProps> = ({
                             </div>
                         )}
                         {signingUp && (
-                            <SwitchRow
-                                id="mx_ClarivaAuth_consultant"
-                                title={authStrings.consultantTitle}
-                                subtitle={authStrings.consultantSubtitle}
-                                checked={isConsultant}
-                                onChange={setIsConsultant}
-                                disabled={loading}
-                                testId="clariva-auth-consultant"
-                            />
+                            // The switch and, only once it is on, the optional payout setup: one group, so the setup
+                            // reads as part of that choice rather than as more mandatory sign-up fields.
+                            <div className="mx_ClarivaSetup">
+                                <SwitchRow
+                                    id="mx_ClarivaAuth_consultant"
+                                    title={authStrings.consultantTitle}
+                                    subtitle={authStrings.consultantSubtitle}
+                                    checked={isConsultant}
+                                    onChange={setIsConsultant}
+                                    disabled={loading}
+                                    testId="clariva-auth-consultant"
+                                />
+                                {isConsultant && (
+                                    <div className="mx_ClarivaSetup_panel">
+                                        {setup.isSkipped ? (
+                                            <SkippedSetup
+                                                disabled={loading}
+                                                onResume={() => setSetup((s) => resumeSetup(s))}
+                                            />
+                                        ) : (
+                                            <ConsultantSetupFields
+                                                idPrefix="mx_ClarivaAuth_setup"
+                                                setup={setup}
+                                                onChange={(field, value) =>
+                                                    setSetup((s) => withSetupField(s, field, value))
+                                                }
+                                                ifscStatus={ifscStatus}
+                                                disabled={loading}
+                                                holderNameHint={name}
+                                                onSkip={() => {
+                                                    ifscAutofill.current = null;
+                                                    setSetup(skipSetup());
+                                                }}
+                                            />
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         )}
 
                         <Button

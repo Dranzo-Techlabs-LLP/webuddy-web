@@ -184,8 +184,11 @@ describe("WalletStore", () => {
             });
             const store = WalletStore.instance;
             store.start(ME);
-            expect(await store.getPeer("@bridge:other.org")).toBeNull();
-            expect(await store.getPeer("@bridge:other.org")).toBeNull();
+            // No wallet row is a real answer (Android `lookUpUser`): a client with the default "Everyone" privacy.
+            const first = await store.getPeer("@bridge:other.org", { maxAgeMs: 0 });
+            expect(first).toMatchObject({ maxCredits: null, isConsultant: false, designation: null });
+            expect(first?.presencePrivacy?.lastSeen).toBe("everyone");
+            expect(await store.getPeer("@bridge:other.org", { maxAgeMs: 0 })).toEqual(first);
             expect(fetchMock.mock.calls.filter(([u]) => String(u).includes("bridge"))).toHaveLength(1);
         });
     });

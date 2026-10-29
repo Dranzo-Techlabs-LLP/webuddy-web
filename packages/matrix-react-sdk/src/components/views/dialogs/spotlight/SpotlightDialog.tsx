@@ -87,6 +87,7 @@ import { useFeatureEnabled } from "../../../../hooks/useSettings";
 import { filterBoolean } from "../../../../utils/arrays";
 import { transformSearchTerm } from "../../../../utils/SearchInput";
 import { Filter } from "./Filter";
+import { clarivaHidesGroupRooms } from "../../../../clariva/chat/groupRooms"; // CLARIVA: no group rooms yet
 
 const MAX_RECENT_SEARCHES = 10;
 const SECTION_LIMIT = 50; // only show 50 results per section for performance reasons
@@ -297,7 +298,13 @@ const SpotlightDialog: React.FC<IProps> = ({ initialText = "", initialFilter = n
     const rovingContext = useContext(RovingTabIndexContext);
     const [query, _setQuery] = useState(initialText);
     const [recentSearches, clearRecentSearches] = useRecentSearches();
-    const [filter, setFilterInternal] = useState<Filter | null>(initialFilter);
+    // CLARIVA: no public room / space directory, "Join room by address" or group chat while group rooms are off
+    const hideGroupRooms = clarivaHidesGroupRooms();
+    const [filter, setFilterInternal] = useState<Filter | null>(
+        hideGroupRooms && (initialFilter === Filter.PublicRooms || initialFilter === Filter.PublicSpaces)
+            ? null
+            : initialFilter,
+    );
     const setFilter = useCallback((filter: Filter | null) => {
         setFilterInternal(filter);
         inputRef.current?.focus();
@@ -580,7 +587,7 @@ const SpotlightDialog: React.FC<IProps> = ({ initialText = "", initialFilter = n
                         : _t("spotlight_dialog|heading_without_query")}
                 </h4>
                 <div>
-                    {filter !== Filter.PublicSpaces && supportsSpaceFiltering && (
+                    {filter !== Filter.PublicSpaces && supportsSpaceFiltering && !hideGroupRooms && (
                         <Option
                             id="mx_SpotlightDialog_button_explorePublicSpaces"
                             className="mx_SpotlightDialog_explorePublicSpaces"
@@ -589,7 +596,7 @@ const SpotlightDialog: React.FC<IProps> = ({ initialText = "", initialFilter = n
                             {filterToLabel(Filter.PublicSpaces)}
                         </Option>
                     )}
-                    {filter !== Filter.PublicRooms && (
+                    {filter !== Filter.PublicRooms && !hideGroupRooms && (
                         <Option
                             id="mx_SpotlightDialog_button_explorePublicRooms"
                             className="mx_SpotlightDialog_explorePublicRooms"
@@ -894,6 +901,7 @@ const SpotlightDialog: React.FC<IProps> = ({ initialText = "", initialFilter = n
 
         let joinRoomSection: JSX.Element | undefined;
         if (
+            !hideGroupRooms && // CLARIVA
             trimmedQuery.startsWith("#") &&
             trimmedQuery.includes(":") &&
             (!getCachedRoomIDForAlias(trimmedQuery) || !cli.getRoom(getCachedRoomIDForAlias(trimmedQuery)))
@@ -977,7 +985,7 @@ const SpotlightDialog: React.FC<IProps> = ({ initialText = "", initialFilter = n
         }
 
         let groupChatSection: JSX.Element | undefined;
-        if (filter === Filter.People) {
+        if (filter === Filter.People && !hideGroupRooms /* CLARIVA */) {
             groupChatSection = (
                 <div
                     className="mx_SpotlightDialog_section mx_SpotlightDialog_otherSearches"

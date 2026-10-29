@@ -61,6 +61,8 @@ import InlineSpinner from "../elements/InlineSpinner";
 import { HomeButtonContextMenu } from "../spaces/SpacePanel";
 import { isClarivaEnabled } from "../../../clariva/config"; // CLARIVA: "Chats" heading
 import { chatsStrings } from "../../../clariva/strings/chats"; // CLARIVA: "Chats" heading
+import { clarivaHidesGroupRooms } from "../../../clariva/chat/groupRooms"; // CLARIVA: no group rooms yet
+import AccessibleButton from "../elements/AccessibleButton"; // CLARIVA: the "+" starts a chat directly
 
 const contextMenuBelow = (elementRect: DOMRect): MenuProps => {
     // align the context menu's icons with the icon which opened the context menu
@@ -152,6 +154,9 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
     const canExploreRooms = shouldShowComponent(UIComponent.ExploreRooms);
     const canCreateRooms = shouldShowComponent(UIComponent.CreateRooms);
     const canCreateSpaces = shouldShowComponent(UIComponent.CreateSpaces);
+    // CLARIVA: "New room" / "Explore rooms" are hidden while group rooms are off (Android GROUP_ROOMS_ENABLED); the
+    // room directory and "Add space" already are, through shouldShowComponent.
+    const hideGroupRooms = clarivaHidesGroupRooms();
 
     const hasPermissionToAddSpaceChild = activeSpace?.currentState?.maySendStateEvent(
         EventType.SpaceChild,
@@ -200,7 +205,7 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
         }
 
         let newRoomOptions: JSX.Element | undefined;
-        if (activeSpace?.currentState.maySendStateEvent(EventType.RoomAvatar, cli.getUserId()!)) {
+        if (!hideGroupRooms && activeSpace?.currentState.maySendStateEvent(EventType.RoomAvatar, cli.getUserId()!)) {
             newRoomOptions = (
                 <>
                     <IconizedContextMenuOption
@@ -244,33 +249,37 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
                 <IconizedContextMenuOptionList first>
                     {inviteOption}
                     {newRoomOptions}
-                    <IconizedContextMenuOption
-                        label={_t("action|explore_rooms")}
-                        iconClassName="mx_RoomListHeader_iconExplore"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            defaultDispatcher.dispatch<ViewRoomPayload>({
-                                action: Action.ViewRoom,
-                                room_id: activeSpace.roomId,
-                                metricsTrigger: undefined, // other
-                            });
-                            closePlusMenu();
-                            PosthogTrackers.trackInteraction("WebRoomListHeaderPlusMenuExploreRoomsItem", e);
-                        }}
-                    />
-                    <IconizedContextMenuOption
-                        label={_t("action|add_existing_room")}
-                        iconClassName="mx_RoomListHeader_iconPlus"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            showAddExistingRooms(activeSpace);
-                            closePlusMenu();
-                        }}
-                        disabled={!canAddSubRooms}
-                        title={!canAddSubRooms ? _t("spaces|error_no_permission_add_room") : undefined}
-                    />
+                    {!hideGroupRooms /* CLARIVA */ && (
+                        <IconizedContextMenuOption
+                            label={_t("action|explore_rooms")}
+                            iconClassName="mx_RoomListHeader_iconExplore"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                defaultDispatcher.dispatch<ViewRoomPayload>({
+                                    action: Action.ViewRoom,
+                                    room_id: activeSpace.roomId,
+                                    metricsTrigger: undefined, // other
+                                });
+                                closePlusMenu();
+                                PosthogTrackers.trackInteraction("WebRoomListHeaderPlusMenuExploreRoomsItem", e);
+                            }}
+                        />
+                    )}
+                    {!hideGroupRooms /* CLARIVA */ && (
+                        <IconizedContextMenuOption
+                            label={_t("action|add_existing_room")}
+                            iconClassName="mx_RoomListHeader_iconPlus"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                showAddExistingRooms(activeSpace);
+                                closePlusMenu();
+                            }}
+                            disabled={!canAddSubRooms}
+                            title={!canAddSubRooms ? _t("spaces|error_no_permission_add_room") : undefined}
+                        />
+                    )}
                     {canCreateSpaces && (
                         <IconizedContextMenuOption
                             label={_t("room_list|add_space_label")}
@@ -308,18 +317,20 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
                             closePlusMenu();
                         }}
                     />
-                    <IconizedContextMenuOption
-                        label={_t("action|new_room")}
-                        iconClassName="mx_RoomListHeader_iconNewRoom"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            defaultDispatcher.dispatch({ action: "view_create_room" });
-                            PosthogTrackers.trackInteraction("WebRoomListHeaderPlusMenuCreateRoomItem", e);
-                            closePlusMenu();
-                        }}
-                    />
-                    {videoRoomsEnabled && (
+                    {!hideGroupRooms /* CLARIVA */ && (
+                        <IconizedContextMenuOption
+                            label={_t("action|new_room")}
+                            iconClassName="mx_RoomListHeader_iconNewRoom"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                defaultDispatcher.dispatch({ action: "view_create_room" });
+                                PosthogTrackers.trackInteraction("WebRoomListHeaderPlusMenuCreateRoomItem", e);
+                                closePlusMenu();
+                            }}
+                        />
+                    )}
+                    {!hideGroupRooms /* CLARIVA */ && videoRoomsEnabled && (
                         <IconizedContextMenuOption
                             label={_t("action|new_video_room")}
                             iconClassName="mx_RoomListHeader_iconNewVideoRoom"
@@ -426,14 +437,24 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
                     <InlineSpinner />
                 </Tooltip>
             ) : null}
-            {canShowPlusMenu && (
-                <ContextMenuTooltipButton
-                    ref={plusMenuHandle}
-                    onClick={openPlusMenu}
-                    isExpanded={plusMenuDisplayed}
+            {/* CLARIVA: with group rooms off the Home "+" menu would only hold "Start new chat": start it directly */}
+            {canShowPlusMenu && hideGroupRooms && !activeSpace ? (
+                <AccessibleButton
+                    onClick={() => defaultDispatcher.dispatch({ action: "view_create_chat" })}
                     className="mx_RoomListHeader_plusButton"
-                    title={_t("action|add")}
+                    aria-label={chatsStrings.startNewChat}
+                    title={chatsStrings.startNewChat}
                 />
+            ) : (
+                canShowPlusMenu && (
+                    <ContextMenuTooltipButton
+                        ref={plusMenuHandle}
+                        onClick={openPlusMenu}
+                        isExpanded={plusMenuDisplayed}
+                        className="mx_RoomListHeader_plusButton"
+                        title={_t("action|add")}
+                    />
+                )
             )}
 
             {contextMenu}

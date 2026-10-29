@@ -36,7 +36,8 @@ function RailItem({ room }: { room: Room }): JSX.Element {
                 onClick={() => openChat(room.roomId)}
                 data-testid="clariva-home-chat"
             >
-                {/* decorative: the unread badge and the presence dot are announced by the chat list row, not here */}
+                {/* decorative: the unread badge is announced by the chat list row, not here (no presence dot: like the
+                    chat list it would ignore the partner's "Last seen and online" choice; CSS hides it) */}
                 <span className="mx_ClarivaRail_avatar" aria-hidden="true">
                     <DecoratedRoomAvatar
                         room={room}

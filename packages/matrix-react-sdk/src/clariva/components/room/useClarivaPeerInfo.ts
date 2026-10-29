@@ -21,6 +21,7 @@ import { getClarivaConfig } from "../../config";
 import { WalletStore, type PeerWalletInfo } from "../../stores/WalletStore";
 import { useWalletSnapshot } from "../../hooks/useWallet";
 import { useClarivaDmPeerId } from "../../chat/useChatGate";
+import { designationBadgeOf, usePeerChanged } from "../../presence/designation";
 
 export interface ClarivaPeerInfo {
     /** The other party of a 1:1 chat, or `null` (not a DM, or Clariva is off). */
@@ -29,18 +30,21 @@ export interface ClarivaPeerInfo {
     isConsultant: boolean | null;
     /** The peer's price per 24 h chat. Only ever set for a consultant whose price is known. */
     rate: number | null;
+    /** A consultant's designation badge ("Consultant" when they set none); `null` for a client or while unknown. */
+    badge: string | null;
 }
 
-const UNKNOWN: ClarivaPeerInfo = Object.freeze({ peerId: null, isConsultant: null, rate: null });
+const UNKNOWN: ClarivaPeerInfo = Object.freeze({ peerId: null, isConsultant: null, rate: null, badge: null });
 
 /** The room-facing view of what the wallet knows about a peer (the same data the chat-list "{n} credits" tag reads). */
 export function peerInfoOf(peerId: string | null, info: PeerWalletInfo | null | undefined): ClarivaPeerInfo {
     if (!peerId) return UNKNOWN;
-    if (!info) return { peerId, isConsultant: null, rate: null };
+    if (!info) return { peerId, isConsultant: null, rate: null, badge: null };
     return {
         peerId,
         isConsultant: info.isConsultant,
         rate: info.isConsultant === true ? info.maxCredits : null,
+        badge: designationBadgeOf(info),
     };
 }
 
@@ -49,12 +53,15 @@ export function peerInfoOf(peerId: string | null, info: PeerWalletInfo | null | 
  * the WalletStore cache (instant on a re-opened chat), then refreshed through `WalletStore.getPeer`, which caches and
  * de-duplicates per peer with the room-list TTL (the Wallet-API's pool has been starved by chatty clients before,
  * lesson L7: this adds at most one cached lookup per open chat). Silent when the peer is unknown or not a Clariva user.
+ * A later reload of the peer (the open chat re-reads it, Android `refreshPeerProfile`) shows up through
+ * `WalletStoreEvent.Peer`.
  */
 export function useClarivaPeerInfo(room: Room | null | undefined): ClarivaPeerInfo {
     // no membership listener: a RoomState allows few of them and the parent re-renders on membership changes anyway
     const peerId = useClarivaDmPeerId(room, false);
     const userId = useWalletSnapshot().userId;
     const [lookup, setLookup] = useState<{ peerId: string; info: PeerWalletInfo | null } | null>(null);
+    usePeerChanged(peerId);
 
     useEffect(() => {
         if (!peerId || !userId) return;
@@ -74,6 +81,7 @@ export function useClarivaPeerInfo(room: Room | null | undefined): ClarivaPeerIn
     }, [peerId, userId]);
 
     if (!peerId) return UNKNOWN;
+    // the cache holds the newest reload (a forced re-read replaces it); the lookup covers a peer the cache dropped
     const fresh = lookup && lookup.peerId === peerId ? lookup.info : undefined;
-    return peerInfoOf(peerId, fresh ?? WalletStore.instance.getCachedPeer(peerId));
+    return peerInfoOf(peerId, WalletStore.instance.getCachedPeer(peerId) ?? fresh);
 }

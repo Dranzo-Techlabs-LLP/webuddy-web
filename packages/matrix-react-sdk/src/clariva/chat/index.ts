@@ -29,6 +29,7 @@ export {
     useClarivaCallDmPeerId,
     useClarivaDmPeerId,
     isChatRestricted,
+    chatRestrictionReason,
     evaluateChatGate,
 } from "./useChatGate";
 export type { ChatGateState } from "./useChatGate";

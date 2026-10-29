@@ -78,8 +78,13 @@ describe("ClarivaDmIntroCard", () => {
     let room: Room;
     let events: MatrixEvent[];
 
-    const setPeer = (isConsultant: boolean | null, rate: number | null): void => {
-        jest.mocked(useClarivaPeerInfo).mockReturnValue({ peerId: CONSULTANT, isConsultant, rate });
+    const setPeer = (isConsultant: boolean | null, rate: number | null, badge?: string): void => {
+        jest.mocked(useClarivaPeerInfo).mockReturnValue({
+            peerId: CONSULTANT,
+            isConsultant,
+            rate,
+            badge: isConsultant ? (badge ?? "Consultant") : null,
+        });
     };
 
     const renderCard = (children?: React.ReactNode, onAvatarClick?: () => void): void => {
@@ -127,6 +132,13 @@ describe("ClarivaDmIntroCard", () => {
         renderCard();
         expect(screen.getByTestId("clariva-role-badge")).toHaveTextContent("Consultant");
         expect(screen.getByTestId("clariva-intro-rate")).toHaveTextContent("100 credits per 24 h chat");
+    });
+
+    it("a consultant with a designation: the badge shows it instead of 'Consultant' (Android DesignationBadge)", () => {
+        setPeer(true, 100, "Cardiologist");
+        renderCard();
+        expect(screen.getByTestId("clariva-role-badge")).toHaveTextContent("Cardiologist");
+        expect(screen.getByTestId("clariva-role-badge")).toHaveAttribute("title", "Cardiologist");
     });
 
     it("formats the rate like the chat list (a decimal keeps its cents, thousands are not grouped)", () => {

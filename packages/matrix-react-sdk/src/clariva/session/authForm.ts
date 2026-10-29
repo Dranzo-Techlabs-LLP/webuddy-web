@@ -122,6 +122,13 @@ export interface AuthFormValues {
     usernameAvailability: Availability;
     emailAvailability: Availability;
     isLoading: boolean;
+    /** The "I am a consultant" switch (sign-up only). */
+    isConsultant?: boolean;
+    /**
+     * The optional payout setup is skipped, or valid with an IFSC not known to be wrong (`isSetupReady` in
+     * consultantSetup.ts). Only consulted for a consultant; omitted means ready.
+     */
+    consultantSetupReady?: boolean;
 }
 
 /**
@@ -142,7 +149,9 @@ export function submitEnabled(values: AuthFormValues): boolean {
         values.name.trim().length >= MIN_NAME_LENGTH &&
         isUsernameWellFormed(values.username) &&
         values.usernameAvailability !== "taken" &&
-        values.emailAvailability !== "taken"
+        values.emailAvailability !== "taken" &&
+        // The setup is optional, but what IS typed must be valid: half a bank account would otherwise be dropped.
+        (!values.isConsultant || values.consultantSetupReady !== false)
     );
 }
 

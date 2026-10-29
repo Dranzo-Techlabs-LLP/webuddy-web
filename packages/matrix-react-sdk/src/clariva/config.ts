@@ -90,6 +90,12 @@ export interface IClarivaConfig {
         qr?: boolean;
         /** Google sign-in button (also requires google_client_id). Default true. */
         google_sign_in?: boolean;
+        /**
+         * Group rooms and spaces (Android `ClarivaConfig.GROUP_ROOMS_ENABLED`). Default false: the "Rooms" chat-list
+         * filter and the "New room" / "Join room by address" / room directory entries are hidden. 1:1 chats are
+         * unaffected, and group rooms a user is already in keep appearing in the chat list.
+         */
+        group_rooms?: boolean;
     };
 }
 
@@ -102,7 +108,7 @@ export interface IResolvedClarivaConfig {
     polling: IClarivaPollingConfig;
     hold_first: boolean;
     bill_consultants_only: boolean;
-    features: { calls: boolean; qr: boolean; google_sign_in: boolean };
+    features: { calls: boolean; qr: boolean; google_sign_in: boolean; group_rooms: boolean };
 }
 
 export const DEFAULT_POLLING: Readonly<IClarivaPollingConfig> = Object.freeze({
@@ -152,6 +158,7 @@ export function getClarivaConfig(): IResolvedClarivaConfig {
             calls: raw.features?.calls ?? false,
             qr: raw.features?.qr ?? true,
             google_sign_in: raw.features?.google_sign_in ?? true,
+            group_rooms: raw.features?.group_rooms ?? false,
         },
     };
 }

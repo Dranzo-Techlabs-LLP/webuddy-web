@@ -29,6 +29,14 @@ export const chatStrings = {
     /** Chat-list rate label (U8), e.g. `50 credits` (Android prints the unit even for 1). */
     gateRateLabel: (n: string): string => `${n} credits`,
 
+    // ── consultant <-> consultant rule (Android DisabledComposerView / ConsultantChatNotAllowedException) ──────────
+    /** The bar that replaces the composer of an existing consultant <-> consultant chat (no Recharge button). */
+    gateConsultantPeerTitle: "You can't chat with other consultants.",
+    gateConsultantPeerSubtitle: "Consultants can only chat with clients.",
+    /** The warning shown instead of creating a NEW consultant <-> consultant chat (no retry). */
+    consultantChatNotAllowedTitle: "Can't start chat",
+    consultantChatNotAllowedMessage: "You can't chat with other consultants. Consultants can only chat with clients.",
+
     // ── session: "Start a new session?" dialog (spec 03 U2) ──────────────────────────────────────────────────
     sessionNewTitle: "Start a new session?",
     sessionNewBody:

@@ -74,8 +74,8 @@ interface Props {
 
 /**
  * The top of a 1:1 chat (replaces the stock avatar + name block of `NewRoomIntro`): one glass lens with a 72px avatar,
- * the name in the display face, the "Consultant" badge, the consultant's rate, a privacy line (only when the room is
- * really end-to-end encrypted) and the Voice / Video actions. An empty chat adds a gentle prompt below the lens; the
+ * the name in the display face, the consultant's designation badge ("Consultant" by default) and rate, a privacy line
+ * (only when the room is really end-to-end encrypted) and the Voice / Video actions. An empty chat adds a gentle prompt below the lens; the
  * stock explanation stays underneath it as small text. Everything is optional: with nothing known the card is just the
  * avatar and the name.
  */
@@ -95,7 +95,8 @@ export function ClarivaDmIntroCard({ room, client, onAvatarClick, children }: Pr
         [room],
     );
 
-    const showRate = peer.isConsultant === true && peer.rate !== null;
+    const isConsultant = peer.isConsultant === true;
+    const showRate = isConsultant && peer.rate !== null;
     const empty = !roomHasContent(room);
 
     return (
@@ -103,9 +104,9 @@ export function ClarivaDmIntroCard({ room, client, onAvatarClick, children }: Pr
             <section className="mx_ClarivaDmIntro_card" aria-label={roomStrings.introLabel}>
                 <ClarivaRoomAvatar room={room} size="72px" onClick={onAvatarClick} />
                 <h2 className="mx_ClarivaDmIntro_name">{room.name}</h2>
-                {(peer.isConsultant === true || showRate) && (
+                {isConsultant && (
                     <div className="mx_ClarivaDmIntro_tags">
-                        {peer.isConsultant === true && <ClarivaRoleBadge />}
+                        <ClarivaRoleBadge text={peer.badge ?? undefined} />
                         {showRate && (
                             <span className="mx_ClarivaDmIntro_rate" data-testid="clariva-intro-rate">
                                 <CoinIcon size={14} />

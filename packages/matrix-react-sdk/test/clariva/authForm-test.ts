@@ -91,6 +91,23 @@ describe("submitEnabled (spec 01 §3.2)", () => {
             expect(submitEnabled({ ...signUp, usernameAvailability: state, emailAvailability: state })).toBe(true);
         }
     });
+
+    it("a consultant's payout setup must be ready (skipped, empty or valid); a client's is never consulted", () => {
+        expect(submitEnabled({ ...signUp, isConsultant: true, consultantSetupReady: true })).toBe(true);
+        expect(submitEnabled({ ...signUp, isConsultant: true, consultantSetupReady: false })).toBe(false);
+        expect(submitEnabled({ ...signUp, isConsultant: true })).toBe(true); // omitted means ready
+        expect(submitEnabled({ ...signUp, isConsultant: false, consultantSetupReady: false })).toBe(true);
+        // sign-in has no setup at all
+        expect(
+            submitEnabled({
+                ...base,
+                email: "jane.doe",
+                password: "12345678",
+                isConsultant: true,
+                consultantSetupReady: false,
+            }),
+        ).toBe(true);
+    });
 });
 
 describe("username rules (spec 01 §3.1)", () => {

@@ -22,6 +22,18 @@ import { ClarivaHttpError } from "../api/http";
 import { ClarivaWalletApi } from "../api/wallet";
 import { parseAmount } from "../money";
 import {
+    DEFAULT_PRESENCE_PRIVACY,
+    designationOf,
+    mergeSettings,
+    normalizeDesignation,
+    presencePrivacyOf,
+    presencePrivacyToJson,
+    samePresencePrivacy,
+    SETTINGS_DESIGNATION_KEY,
+    SETTINGS_PRESENCE_PRIVACY_KEY,
+    type PresencePrivacy,
+} from "../profile/settings";
+import {
     type CreateOrderResponse,
     type TransactionHistoryResponse,
     type VerifyPaymentRequest,
@@ -50,12 +62,15 @@ export enum WalletStoreEvent {
     Update = "Clariva.Wallet.update",
     /** The consultant's set of clients with an open refund request changed. */
     PendingRefunds = "Clariva.Wallet.pendingRefunds",
+    /** A peer's wallet row (role, price, designation, "Last seen" choice) was (re)loaded and changed. */
+    Peer = "Clariva.Wallet.peer",
 }
 
 type EmittedEvents = WalletStoreEvent;
 type EventHandlerMap = {
     [WalletStoreEvent.Update]: () => void;
     [WalletStoreEvent.PendingRefunds]: (clientIds: ReadonlySet<string>) => void;
+    [WalletStoreEvent.Peer]: (peerId: string) => void;
 };
 
 /** What the wallet knows about someone else (a chat peer). `null` fields mean "unknown". */
@@ -63,6 +78,13 @@ export interface PeerWalletInfo {
     /** The peer's price per 24 h chat (`max_credits`). Only meaningful when `isConsultant === true`. */
     maxCredits: number | null;
     isConsultant: boolean | null;
+    /**
+     * The peer's designation from their `settings` (`null` = none set, the UI shows the default "Consultant"). Only
+     * meaningful when `isConsultant === true`; `undefined` = not looked up with settings yet.
+     */
+    designation?: string | null;
+    /** The peer's "Last seen and online" choice; `undefined` = unknown, and their presence stays hidden (fail closed). */
+    presencePrivacy?: PresencePrivacy;
     fetchedAt: number;
 }
 
@@ -79,9 +101,21 @@ export interface WalletSnapshot {
     loaded: boolean;
     /** CLARIVA(wallet UI): the latest balance fetch failed (the last good values are kept); cleared by the next success. */
     balanceFailed?: boolean;
+    /** My designation (consultants), `null` when none is set or not loaded yet. */
+    designation?: string | null;
+    /** My "Last seen and online" choice, `null` until the first successful load. */
+    presencePrivacy?: PresencePrivacy | null;
 }
 
 const holdKey = (me: string, peer: string): string => `${me}|${peer}`;
+
+/** Did anything the UI shows about a peer change (role, price, designation, "Last seen" choice)? */
+function samePeerProfile(a: PeerWalletInfo, b: PeerWalletInfo): boolean {
+    if (a.maxCredits !== b.maxCredits || a.isConsultant !== b.isConsultant) return false;
+    if ((a.designation ?? null) !== (b.designation ?? null)) return false;
+    if ((a.presencePrivacy === undefined) !== (b.presencePrivacy === undefined)) return false;
+    return samePresencePrivacy(a.presencePrivacy ?? DEFAULT_PRESENCE_PRIVACY, b.presencePrivacy ?? DEFAULT_PRESENCE_PRIVACY);
+}
 
 /** After a 404 for a peer (not a Clariva user, e.g. a bridge or bot) do not ask again for this long. */
 const PEER_NOT_FOUND_BACKOFF_MS = 5 * 60_000;
@@ -105,6 +139,8 @@ export class WalletStore extends TypedEventEmitter<EmittedEvents, EventHandlerMa
     private creditsInternal: number | null = null;
     private maxCreditsInternal: number | null = null;
     private isConsultantInternal: boolean | null = null;
+    private designationInternal: string | null = null;
+    private presencePrivacyInternal: PresencePrivacy | null = null;
     private webuddyNameInternal: string | null = null;
     private pendingRefundClientsInternal: ReadonlySet<string> = new Set();
     private loadedInternal = false;
@@ -174,6 +210,8 @@ export class WalletStore extends TypedEventEmitter<EmittedEvents, EventHandlerMa
             isConsultant: this.isConsultantInternal,
             loaded: this.loadedInternal,
             balanceFailed: this.balanceFailedInternal,
+            designation: this.designationInternal,
+            presencePrivacy: this.presencePrivacyInternal,
         };
     }
 
@@ -213,6 +251,8 @@ export class WalletStore extends TypedEventEmitter<EmittedEvents, EventHandlerMa
         this.creditsInternal = null;
         this.maxCreditsInternal = null;
         this.isConsultantInternal = null;
+        this.designationInternal = null;
+        this.presencePrivacyInternal = null;
         this.webuddyNameInternal = null;
         this.loadedInternal = false;
         this.balanceFailedInternal = false;
@@ -282,6 +322,17 @@ export class WalletStore extends TypedEventEmitter<EmittedEvents, EventHandlerMa
             this.maxCreditsInternal = price;
             changed = true;
         }
+        // No designation in the record is a real value ("none"), so it always overwrites (Android `refreshBalance`).
+        const designation = designationOf(user.settings);
+        if (designation !== this.designationInternal) {
+            this.designationInternal = designation;
+            changed = true;
+        }
+        const privacy = presencePrivacyOf(user.settings);
+        if (!this.presencePrivacyInternal || !samePresencePrivacy(privacy, this.presencePrivacyInternal)) {
+            this.presencePrivacyInternal = privacy;
+            changed = true;
+        }
         if (user.isConsultant === 0 || user.isConsultant === 1) {
             const role = user.isConsultant === 1;
             if (role !== this.isConsultantInternal) {
@@ -340,8 +391,56 @@ export class WalletStore extends TypedEventEmitter<EmittedEvents, EventHandlerMa
         await ClarivaWalletApi.updateUser(me, { max_credits: maxCredits });
         this.maxCreditsInternal = maxCredits;
         // our own price is also what clients would read for us
-        this.peers.set(me, { maxCredits, isConsultant: true, fetchedAt: Date.now() });
+        this.peers.set(me, { ...this.peers.get(me), maxCredits, isConsultant: true, fetchedAt: Date.now() });
         this.emit(WalletStoreEvent.Update);
+    }
+
+    // ── settings JSON: designation + "Last seen and online" (Android ee053dc156) ─────────────────────────────
+
+    /**
+     * Save my designation (consultants: the title shown under their name, e.g. "Cardiologist"). Blank removes it, so
+     * the default "Consultant" shows again. Throws for more than `MAX_DESIGNATION_LENGTH` characters or on failure.
+     */
+    public async updateDesignation(designation: string | null): Promise<void> {
+        const value = normalizeDesignation(designation);
+        const me = this.requireUser();
+        await this.updateSettings(SETTINGS_DESIGNATION_KEY, value);
+        if (this.userIdInternal !== me) return;
+        this.designationInternal = value;
+        const own = this.peers.get(me);
+        if (own) this.peers.set(me, { ...own, designation: value });
+        this.emit(WalletStoreEvent.Update);
+    }
+
+    /** Save my "Last seen and online" choice. Throws on failure (the caller reverts its UI). */
+    public async updatePresencePrivacy(privacy: PresencePrivacy): Promise<void> {
+        const me = this.requireUser();
+        await this.updateSettings(SETTINGS_PRESENCE_PRIVACY_KEY, presencePrivacyToJson(privacy));
+        if (this.userIdInternal !== me) return;
+        this.presencePrivacyInternal = privacy;
+        const own = this.peers.get(me);
+        if (own) this.peers.set(me, { ...own, presencePrivacy: privacy });
+        this.emit(WalletStoreEvent.Update);
+    }
+
+    /**
+     * Set one key of my `settings` JSON (`value === null` removes it). The Wallet-API REPLACES the whole object, so this
+     * re-reads it first and writes it back with only that key changed, keeping every other key (Android
+     * `WalletService.updateSettings`).
+     */
+    private async updateSettings(key: string, value: unknown | null): Promise<void> {
+        const me = this.requireUser();
+        const current = await ClarivaWalletApi.getUser(me);
+        await ClarivaWalletApi.updateUser(me, { settings: mergeSettings(current.settings, key, value) });
+    }
+
+    /**
+     * Re-read a peer's role, price, designation and "Last seen" choice, bypassing the cache, so a designation a
+     * consultant just changed shows the next time their chat is opened (Android `refreshPeerProfile`). Resolves
+     * `null` when the lookup failed; the previously cached values are kept.
+     */
+    public refreshPeer(peerId: string): Promise<PeerWalletInfo | null> {
+        return this.getPeer(peerId, { force: true });
     }
 
     // ── peers (rate + role of the other party) ──────────────────────────────
@@ -356,10 +455,10 @@ export class WalletStore extends TypedEventEmitter<EmittedEvents, EventHandlerMa
      * TTL; Android never expired — a quirk we fixed). Never touches the LOCAL user's own state (L8). Returns `null`
      * when unknown (network error, no wallet row): callers fail open.
      */
-    public getPeer(peerId: string, options?: { maxAgeMs?: number }): Promise<PeerWalletInfo | null> {
+    public getPeer(peerId: string, options?: { maxAgeMs?: number; force?: boolean }): Promise<PeerWalletInfo | null> {
         const maxAge = options?.maxAgeMs ?? getClarivaConfig().polling.peer_rate_ttl_ms;
         const cached = this.peers.get(peerId);
-        if (cached && Date.now() - cached.fetchedAt <= maxAge) return Promise.resolve(cached);
+        if (cached && !options?.force && Date.now() - cached.fetchedAt <= maxAge) return Promise.resolve(cached);
 
         const notFoundUntil = this.peerNotFoundUntil.get(peerId);
         if (notFoundUntil !== undefined && Date.now() < notFoundUntil) return Promise.resolve(cached ?? null);
@@ -375,14 +474,31 @@ export class WalletStore extends TypedEventEmitter<EmittedEvents, EventHandlerMa
                 const info: PeerWalletInfo = {
                     maxCredits: parseAmount(user.max_credits),
                     isConsultant: user.isConsultant === 1 ? true : user.isConsultant === 0 ? false : null,
+                    designation: designationOf(user.settings),
+                    presencePrivacy: presencePrivacyOf(user.settings),
                     fetchedAt: Date.now(),
                 };
+                const previous = this.peers.get(peerId);
                 this.peers.set(peerId, info);
+                if (!previous || !samePeerProfile(previous, info)) this.emit(WalletStoreEvent.Peer, peerId);
                 this.peerNotFoundUntil.delete(peerId);
                 return info;
             } catch (e) {
                 if (e instanceof ClarivaHttpError && e.isNotFound) {
                     this.peerNotFoundUntil.set(peerId, Date.now() + PEER_NOT_FOUND_BACKOFF_MS);
+                    if (this.userIdInternal !== me) return null;
+                    // No wallet row is a real answer (Android `lookUpUser`): a client with default settings.
+                    const info: PeerWalletInfo = {
+                        maxCredits: null,
+                        isConsultant: false,
+                        designation: null,
+                        presencePrivacy: DEFAULT_PRESENCE_PRIVACY,
+                        fetchedAt: Date.now(),
+                    };
+                    const previous = this.peers.get(peerId);
+                    this.peers.set(peerId, info);
+                    if (!previous || !samePeerProfile(previous, info)) this.emit(WalletStoreEvent.Peer, peerId);
+                    return info;
                 } else {
                     logger.debug(`Clariva wallet: failed to look up ${peerId}`, e);
                 }

@@ -57,8 +57,8 @@ import { isLocationEvent } from "../../../utils/EventUtils";
 import { isSelfLocation, locationEventGeoUri } from "../../../utils/location";
 import { RoomContextDetails } from "../rooms/RoomContextDetails";
 import { filterBoolean } from "../../../utils/arrays";
-import { isChatRestricted } from "../../../clariva/chat/useChatGate"; // CLARIVA: chat gate guard
-import { chatStrings } from "../../../clariva/strings/chat"; // CLARIVA
+import { chatRestrictionReason } from "../../../clariva/chat/useChatGate"; // CLARIVA: chat gate guard
+import { chatRestrictedTitle } from "../../../clariva/components/chat/gateDialogs"; // CLARIVA
 import {
     IState,
     RovingTabIndexContext,
@@ -123,15 +123,16 @@ const Entry: React.FC<IEntryProps<any>> = ({ room, type, content, matrixClient: 
     let disabled = false;
     let title;
     let icon;
+    const restriction = sendState === SendState.CanSend ? chatRestrictionReason(room) : null; // CLARIVA
     if (sendState === SendState.CanSend) {
         className = "mx_ForwardList_canSend";
         if (!room.maySendMessage()) {
             disabled = true;
             title = _t("forward|no_perms_title");
-        } else if (isChatRestricted(room)) {
-            // CLARIVA: forwarding must not bypass the "Chat restricted" bar
+        } else if (restriction) {
+            // CLARIVA: forwarding must not bypass the "Chat restricted" (or consultant <-> consultant) bar
             disabled = true;
-            title = chatStrings.gateRestricted;
+            title = chatRestrictedTitle(restriction);
         }
     } else if (sendState === SendState.Sending) {
         className = "mx_ForwardList_sending";

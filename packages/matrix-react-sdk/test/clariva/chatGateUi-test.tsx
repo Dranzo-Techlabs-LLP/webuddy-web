@@ -23,6 +23,7 @@ import { Action } from "../../src/dispatcher/actions";
 import { WalletStore } from "../../src/clariva/stores/WalletStore";
 import { getClarivaDmPeerId } from "../../src/clariva/chat/dmPeer";
 import { ChatRestrictedBar } from "../../src/clariva/components/chat/ChatRestrictedBar";
+import { ClarivaComposerGate } from "../../src/clariva/components/chat/ComposerGate";
 import { NewSessionDialog } from "../../src/clariva/components/chat/NewSessionDialog";
 import { ClarivaRoomTileRate, resetRateLookupsForTests } from "../../src/clariva/components/chat/RoomTileRate";
 import { chatStrings } from "../../src/clariva/strings/chat";
@@ -64,6 +65,49 @@ describe("ChatRestrictedBar", () => {
             }),
         );
         dispatch.mockRestore();
+    });
+
+    it("consultant <-> consultant: Android's two lines, no amounts and no Recharge button", () => {
+        render(<ChatRestrictedBar credits={20} required={50} consultantPeer />);
+        expect(screen.getByRole("status")).toHaveAttribute("data-reason", "consultant-peer");
+        expect(screen.getByText("You can't chat with other consultants.")).toBeInTheDocument();
+        expect(screen.getByText("Consultants can only chat with clients.")).toBeInTheDocument();
+        expect(screen.queryByText(chatStrings.gateRestricted)).toBeNull();
+        expect(screen.queryByText(/Current:/)).toBeNull();
+        expect(screen.queryByTestId("clariva-chat-restricted-recharge")).toBeNull();
+    });
+});
+
+describe("ClarivaComposerGate", () => {
+    afterEach(async () => {
+        cleanup();
+        WalletStore.resetForTests();
+    });
+
+    it("hands the composer the consultant <-> consultant bar for a DM between two consultants", async () => {
+        configureClariva();
+        WalletStore.resetForTests();
+        mockPeer.mockReturnValue(CONSULTANT);
+        installFakeApi({
+            [`GET /v1/users/${enc(ME)}`]: () => mockResponse(200, walletUser({ isConsultant: 1 })),
+            [`GET /v1/users/${enc(CONSULTANT)}`]: () =>
+                mockResponse(200, walletUser({ Webuddy_name: CONSULTANT, max_credits: "50.00", isConsultant: 1 })),
+            "GET /v1/refund/pending-for-consultant": () => mockResponse(200, { clientIds: [] }),
+        });
+        WalletStore.instance.start(ME);
+        const room = Object.assign(new EventEmitter(), {
+            roomId: "!dm:clarivahub.com",
+            currentState: new EventEmitter(),
+            client: new EventEmitter(),
+        });
+        render(
+            <ClarivaComposerGate room={room as any}>
+                {(bar) => bar ?? <div data-testid="composer">composer</div>}
+            </ClarivaComposerGate>,
+        );
+        await waitFor(() => expect(screen.getByText("You can't chat with other consultants.")).toBeInTheDocument());
+        expect(screen.queryByTestId("composer")).toBeNull();
+        expect(screen.queryByTestId("clariva-chat-restricted-recharge")).toBeNull();
     });
 });
 

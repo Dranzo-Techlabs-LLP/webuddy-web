@@ -19,6 +19,7 @@ import ErrorDialog from "../../../components/views/dialogs/ErrorDialog";
 import QuestionDialog from "../../../components/views/dialogs/QuestionDialog";
 import { chatStrings } from "../../strings/chat";
 import { type BillingUi, type NewSessionAnswer } from "../../chat/billing";
+import { type GateReason } from "../../chat/gate";
 import { openWalletSettings } from "../wallet/openSettings";
 import { NewSessionDialog } from "./NewSessionDialog";
 
@@ -46,10 +47,19 @@ export function showInsufficientCredits(message: string | undefined): void {
     });
 }
 
-/** A restricted client tried to send through a path that has no composer bar (drag-and-drop, paste, forward). */
-export function showChatRestrictedNotice(): void {
+/** The title a guard without a composer bar shows for a restricted chat (worded like the bar for that reason). */
+export function chatRestrictedTitle(reason: GateReason | null | undefined): string {
+    return reason === "consultant-peer" ? chatStrings.gateConsultantPeerTitle : chatStrings.gateRestricted;
+}
+
+/**
+ * A restricted chat was sent to through a path that has no composer bar (drag-and-drop, paste, attach). A
+ * consultant <-> consultant DM gets the bar's own wording (Android DisabledComposerView), not the wallet text.
+ */
+export function showChatRestrictedNotice(reason?: GateReason | null): void {
     Modal.createDialog(ErrorDialog, {
-        title: chatStrings.gateRestricted,
+        title: chatRestrictedTitle(reason),
+        description: reason === "consultant-peer" ? chatStrings.gateConsultantPeerSubtitle : undefined,
         button: chatStrings.sessionInsufficientClose,
     });
 }

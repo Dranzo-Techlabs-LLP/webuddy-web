@@ -544,6 +544,15 @@ describe("room stylesheets: the DM intro card", () => {
         expect(badge["color"]).toBe("var(--cg-text)");
         expect(styleOf(`${ROOT} .mx_ClarivaDmIntro .mx_ClarivaRoleBadge`)["color"]).toBe("var(--cg-teal-text)");
     });
+
+    it("sets 'online' apart in the header by weight and an accent dot, keeping --cg-text (rule 7)", () => {
+        expect(styleOf(`${ROOT} .mx_ClarivaRoomHeader_presence`)["color"]).toBe("var(--cg-text)");
+        const online = styleOf(`${ROOT} .mx_ClarivaRoomHeader_presence[data-presence="online"]`);
+        expect(online["font"]).toBe("var(--cpd-font-body-sm-semibold)");
+        expect(online["color"]).toBeUndefined();
+        const dot = styleOf(`${ROOT} .mx_ClarivaRoomHeader_presence[data-presence="online"]::before`);
+        expect(dot["background-color"]).toBe("var(--clariva-ring)");
+    });
 });
 
 // ── contrast, measured over the whole wallpaper ────────────────────────────────────────────────────────────────────

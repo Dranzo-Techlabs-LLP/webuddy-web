@@ -145,6 +145,8 @@ import { ConfirmSessionLockTheftView } from "./auth/ConfirmSessionLockTheftView"
 import { LoginSplashView } from "./auth/LoginSplashView";
 import { cleanUpDraftsIfRequired } from "../../DraftCleaner";
 import { Clariva } from "../../clariva"; // CLARIVA: auth screens, silent key storage, session lifecycle
+import { createDmUnlessRefused } from "../../clariva/chat/consultantRule"; // CLARIVA: consultants only chat with clients
+import { clarivaHidesGroupRooms } from "../../clariva/chat/groupRooms"; // CLARIVA: no group rooms yet
 import { ClarivaAuthPage } from "../../clariva/components/auth/ClarivaAuthPage";
 import { ClarivaSignedOutDialog } from "../../clariva/components/auth/ClarivaSignedOutDialog";
 import { isDeliberateSignOut } from "../../clariva/session/signOutState";
@@ -692,8 +694,11 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
                 this.notifyNewScreen("forgot_password");
                 break;
             case "start_chat":
-                createRoom(MatrixClientPeg.safeGet(), {
-                    dmUserId: payload.user_id,
+                // CLARIVA: a consultant may not create a DM with another consultant (Android DefaultStartDMAction)
+                createDmUnlessRefused(MatrixClientPeg.safeGet().getUserId(), [payload.user_id], () => {
+                    createRoom(MatrixClientPeg.safeGet(), {
+                        dmUserId: payload.user_id,
+                    });
                 });
                 break;
             case "leave_room":
@@ -785,12 +790,14 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
                 break;
             }
             case "view_create_room":
+                if (clarivaHidesGroupRooms()) break; // CLARIVA: "New room" is hidden everywhere (e.g. the #/new link)
                 this.createRoom(payload.public, payload.defaultName, payload.type);
 
                 // View the welcome or home page if we need something to look at
                 this.viewSomethingBehindModal();
                 break;
             case Action.ViewRoomDirectory: {
+                if (clarivaHidesGroupRooms()) break; // CLARIVA: no room directory while group rooms are off
                 Modal.createDialog(
                     RovingSpotlightDialog,
                     {

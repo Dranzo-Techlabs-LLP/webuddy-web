@@ -19,6 +19,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import SdkConfig from "../../src/SdkConfig";
+import { MatrixClientPeg } from "../../src/MatrixClientPeg";
 import defaultDispatcher from "../../src/dispatcher/dispatcher";
 import { Action } from "../../src/dispatcher/actions";
 import { UserTab } from "../../src/components/views/dialogs/UserTab";
@@ -28,7 +29,8 @@ import { WalletStore } from "../../src/clariva/stores/WalletStore";
 import { WalletChip, chipText } from "../../src/clariva/components/wallet/WalletChip";
 import { BalanceHeader, canRecharge } from "../../src/clariva/components/wallet/WalletTab";
 import MaxCreditsEditor from "../../src/clariva/components/wallet/MaxCreditsEditor";
-import BankDetailsForm, { describeBankError } from "../../src/clariva/components/wallet/BankDetailsForm";
+import BankDetailsForm from "../../src/clariva/components/wallet/BankDetailsForm";
+import { type IfscLookup, type IfscStatus } from "../../src/clariva/wallet/ifsc";
 import { TransactionList } from "../../src/clariva/components/wallet/TransactionList";
 import TransactionDetailDialog, {
     transactionDetailRows,
@@ -378,78 +380,163 @@ describe("<MaxCreditsEditor />", () => {
 // ───────────────────────────── Bank details ─────────────────────────────
 
 describe("<BankDetailsForm />", () => {
+    const account = {
+        id: "b1",
+        bankName: "State Bank of India",
+        accountNumberLast4: "9012",
+        ifscCode: "SBIN0001234",
+        accountHolderName: "A. Consultant",
+        branchName: "Hajiganj",
+    };
+    /** A lookup that answers `status` for every well-formed code (never the network). */
+    const stubLookup = (status: IfscStatus): IfscLookup =>
+        ({ lookup: jest.fn(async () => status) }) as unknown as IfscLookup;
+    const SBI: IfscStatus = {
+        kind: "found",
+        branch: { bank: "State Bank of India", branch: "Hajiganj", city: "Patna" },
+    };
+
+    const type = async (label: string, text: string): Promise<void> => {
+        await userEvent.type(screen.getByLabelText(label), text);
+    };
     const fill = async (): Promise<void> => {
-        await userEvent.type(screen.getByLabelText("Bank Name"), "State Bank of India");
-        await userEvent.type(screen.getByLabelText("Account Number"), "123456789012");
-        await userEvent.type(screen.getByLabelText("IFSC Code"), "sbin0001234");
-        await userEvent.type(screen.getByLabelText("Account Holder Name"), "A. Consultant");
-        await userEvent.type(screen.getByLabelText("Branch Name"), "Main");
+        await type("Account Holder Name", "A. Consultant");
+        await type("Bank Name", "State Bank of India");
+        await type("Account Number", "123456789012");
+        await type("IFSC Code", "sbin0001234");
     };
     const saveButton = (): HTMLElement => screen.getByRole("button", { name: /Save Details|Saving…/ });
 
-    it("has the five labelled fields, starts empty and cannot be saved", () => {
-        render(<BankDetailsForm expertId={ME} save={jest.fn()} />);
-        for (const label of ["Bank Name", "Account Number", "IFSC Code", "Account Holder Name", "Branch Name"]) {
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    it("shows 'None yet' and 'Add payout account' when nothing is saved; Save starts disabled", async () => {
+        render(<BankDetailsForm load={async () => null} save={jest.fn()} lookup={stubLookup(SBI)} />);
+        expect(screen.getByText("Loading your saved account…")).toBeInTheDocument();
+        expect(await screen.findByText("None yet. Add one below to receive your earnings.")).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Add payout account" })).toBeInTheDocument();
+        expect(screen.getByText("Your earnings are paid into this account.")).toBeInTheDocument();
+        for (const label of [
+            "Account Holder Name",
+            "Bank Name",
+            "Account Number",
+            "IFSC Code",
+            "Branch Name (optional)",
+        ]) {
             expect(screen.getByLabelText(label)).toHaveValue("");
         }
         expect(isDisabled(saveButton())).toBe(true);
     });
 
-    it("sends the Matrix id as expertId with normalised values and reports success only on success", async () => {
-        const save = jest.fn(async () => ({}));
-        render(<BankDetailsForm expertId={ME} save={save} />);
+    it("shows the current payout account with the last 4 digits only, and offers to replace it", async () => {
+        render(<BankDetailsForm load={async () => account} save={jest.fn()} lookup={stubLookup(SBI)} />);
+        expect(await screen.findByText("State Bank of India •••• 9012")).toBeInTheDocument();
+        expect(screen.getByText("A. Consultant · IFSC SBIN0001234 · Hajiganj")).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Replace payout account" })).toBeInTheDocument();
+    });
+
+    it("a failed load says so and Retry loads again", async () => {
+        const load = jest.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(account);
+        render(<BankDetailsForm load={load} save={jest.fn()} lookup={stubLookup(SBI)} />);
+        expect(await screen.findByText("Couldn't load your saved account.")).toBeInTheDocument();
+        await userEvent.click(screen.getByTestId("clariva-bank-retry"));
+        expect(await screen.findByText("State Bank of India •••• 9012")).toBeInTheDocument();
+        expect(load).toHaveBeenCalledTimes(2);
+    });
+
+    it("sends the normalised body (a blank branch is omitted), then shows the new account and clears the form", async () => {
+        const save = jest.fn(async () => account);
+        render(<BankDetailsForm load={async () => null} save={save} lookup={stubLookup({ kind: "unavailable" })} />);
+        await screen.findByText("None yet. Add one below to receive your earnings.");
         await fill();
+        // an unreachable IFSC directory does not block (the API checks again)
+        expect(
+            await screen.findByText("Couldn't verify this IFSC right now. It will be checked when you save."),
+        ).toBeInTheDocument();
         expect(isDisabled(saveButton())).toBe(false);
         await userEvent.click(saveButton());
 
         expect(save).toHaveBeenCalledWith({
-            expertId: ME,
+            accountHolderName: "A. Consultant",
             bankName: "State Bank of India",
             accountNumber: "123456789012",
             ifscCode: "SBIN0001234",
-            accountHolderName: "A. Consultant",
-            branchName: "Main",
         });
         expect(await screen.findByTestId("clariva-bank-saved")).toHaveTextContent("Saved changes");
-        // a double save would insert another row on the server: disabled until something changes
+        expect(screen.getByText("State Bank of India •••• 9012")).toBeInTheDocument();
+        expect(screen.getByLabelText("Account Number")).toHaveValue("");
         expect(isDisabled(saveButton())).toBe(true);
-        await userEvent.type(screen.getByLabelText("Branch Name"), "x");
-        expect(isDisabled(saveButton())).toBe(false);
-        expect(screen.queryByTestId("clariva-bank-saved")).not.toBeInTheDocument();
     });
 
-    it("shows the server's message when it refuses (e.g. no experts row) and never pretends success", async () => {
-        const message = `Expert with ID ${ME} not found`;
-        const save = jest.fn(async () => {
-            throw new ClarivaHttpError(404, `HTTP 404`, "http", message);
-        });
-        render(<BankDetailsForm expertId={ME} save={save} />);
+    it("a found IFSC shows the branch and fills bank + branch without overwriting what was typed", async () => {
+        render(<BankDetailsForm load={async () => null} save={jest.fn()} lookup={stubLookup(SBI)} />);
+        await type("Bank Name", "SBI");
+        await type("IFSC Code", "SBIN0001234");
+        expect(await screen.findByText("State Bank of India · Hajiganj, Patna")).toBeInTheDocument();
+        expect(screen.getByLabelText("Bank Name")).toHaveValue("SBI");
+        expect(screen.getByLabelText("Branch Name (optional)")).toHaveValue("Hajiganj");
+    });
+
+    it("an unknown IFSC blocks saving", async () => {
+        render(<BankDetailsForm load={async () => null} save={jest.fn()} lookup={stubLookup({ kind: "notFound" })} />);
         await fill();
+        expect(
+            await screen.findByText("No bank branch found for this IFSC. Please check the code."),
+        ).toBeInTheDocument();
+        expect(isDisabled(saveButton())).toBe(true);
+    });
+
+    it("shows the API's own reason for a rejected save, a generic line otherwise, and never pretends success", async () => {
+        const save = jest
+            .fn()
+            .mockRejectedValueOnce(
+                new ClarivaHttpError(400, "HTTP 400", "http", "No bank branch found for IFSC SBIN0001234"),
+            )
+            .mockRejectedValueOnce(new ClarivaHttpError(503, "HTTP 503", "http", "Service Unavailable"));
+        render(<BankDetailsForm load={async () => null} save={save} lookup={stubLookup(SBI)} />);
+        await fill();
+        await waitFor(() => expect(isDisabled(saveButton())).toBe(false));
         await userEvent.click(saveButton());
-
-        expect(await screen.findByTestId("clariva-bank-error")).toHaveTextContent(`Error: ${message}`);
+        expect(await screen.findByTestId("clariva-bank-error")).toHaveTextContent(
+            "No bank branch found for IFSC SBIN0001234",
+        );
         expect(screen.queryByTestId("clariva-bank-saved")).not.toBeInTheDocument();
-        expect(isDisabled(saveButton())).toBe(false); // the user can retry
+        await userEvent.click(saveButton());
+        await waitFor(() =>
+            expect(screen.getByTestId("clariva-bank-error")).toHaveTextContent(
+                "Couldn't save your bank details. Check your connection and try again.",
+            ),
+        );
     });
 
-    it("describeBankError prefers the server message", () => {
-        expect(describeBankError(new ClarivaHttpError(404, "HTTP 404", "http", "Expert not found"))).toBe(
-            "Expert not found",
-        );
-        expect(describeBankError(new ClarivaHttpError(502, "HTTP 502 Bad Gateway", "http"))).toBe(
-            "HTTP 502 Bad Gateway",
-        );
-        expect(describeBankError(new Error("boom"))).toBe("boom");
+    it("flags a malformed IFSC / account number as soon as something is typed", async () => {
+        render(<BankDetailsForm load={async () => null} save={jest.fn()} lookup={stubLookup(SBI)} />);
+        await type("IFSC Code", "BAD");
+        expect(await screen.findByText("IFSC code looks like ABCD0123456")).toBeInTheDocument();
+        await type("Account Number", "12ab");
+        expect(screen.getByLabelText("Account Number")).toHaveValue("12");
+        expect(await screen.findByText("Account number must be 9 to 18 digits")).toBeInTheDocument();
     });
 
-    it("flags a malformed IFSC / account number after the field was visited", async () => {
-        render(<BankDetailsForm expertId={ME} save={jest.fn()} />);
-        await userEvent.type(screen.getByLabelText("IFSC Code"), "BAD");
-        await userEvent.tab();
-        expect(await screen.findByText(/IFSC codes are 11 characters/)).toBeInTheDocument();
-        await userEvent.type(screen.getByLabelText("Account Number"), "12ab");
-        await userEvent.tab();
-        expect(await screen.findByText("Account numbers contain digits only.")).toBeInTheDocument();
+    it("by default both calls are authorised by the session's Matrix access token", async () => {
+        configureClariva();
+        const client = { getAccessToken: () => "syt_session_token" };
+        jest.spyOn(MatrixClientPeg, "safeGet").mockReturnValue(client as never);
+        const fetch = installFakeApi({
+            "GET /v1/experts/me/bank-details": () => mockResponse(200, { bankDetail: account }),
+            "POST /v1/experts/me/bank-details": () => mockResponse(201, account),
+        });
+        render(<BankDetailsForm lookup={stubLookup(SBI)} />);
+        expect(await screen.findByText("State Bank of India •••• 9012")).toBeInTheDocument();
+        expect(fetch.mock.calls[0][1].headers.Authorization).toBe("Bearer syt_session_token");
+
+        await fill();
+        await waitFor(() => expect(isDisabled(saveButton())).toBe(false));
+        await userEvent.click(saveButton());
+        await screen.findByTestId("clariva-bank-saved");
+        const post = fetch.mock.calls.find(([, init]) => init.method === "POST");
+        expect(post[1].headers.Authorization).toBe("Bearer syt_session_token");
     });
 });
 

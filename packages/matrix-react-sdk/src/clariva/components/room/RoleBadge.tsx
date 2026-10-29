@@ -16,12 +16,17 @@ limitations under the License.
 
 import React from "react";
 
-import { roomStrings } from "../../strings/room";
+import { DEFAULT_CONSULTANT_DESIGNATION } from "../../profile/settings";
+import { useDesignationBadge } from "../../presence/designation";
 
-/** The "Consultant" tag. Teal wash + a small verified glyph; the colours per context live in `_chatroom.pcss`. */
-export function ClarivaRoleBadge(): JSX.Element {
+/**
+ * A consultant's designation tag (Android `DesignationBadge`): "Consultant" by default, or the title they chose
+ * ("Cardiologist"). Teal wash + a small verified glyph; one line, a long title ends in "..." (the full text is its
+ * tooltip). The colours and the width cap per context live in `_chatroom.pcss` / `_chats.pcss`.
+ */
+export function ClarivaRoleBadge({ text = DEFAULT_CONSULTANT_DESIGNATION }: { text?: string }): JSX.Element {
     return (
-        <span className="mx_ClarivaRoleBadge" data-testid="clariva-role-badge">
+        <span className="mx_ClarivaRoleBadge" data-testid="clariva-role-badge" title={text}>
             <svg
                 className="mx_ClarivaRoleBadge_icon"
                 width="12"
@@ -38,7 +43,21 @@ export function ClarivaRoleBadge(): JSX.Element {
                 <path d="M8 1.8 13.2 3.6v4.1c0 3-2.1 5.4-5.2 6.5-3.1-1.1-5.2-3.5-5.2-6.5V3.6L8 1.8Z" />
                 <path d="m5.7 8 1.7 1.7 3.1-3.4" />
             </svg>
-            {roomStrings.consultantBadge}
+            <span className="mx_ClarivaRoleBadge_text">{text}</span>
+        </span>
+    );
+}
+
+/**
+ * The designation badge of any user (the profile in the right panel, Android `UserProfileView`): shown for a
+ * consultant only, nothing for a client, while unknown or when Clariva is off.
+ */
+export function ClarivaUserDesignationBadge({ userId }: { userId: string }): JSX.Element | null {
+    const badge = useDesignationBadge(userId);
+    if (!badge) return null;
+    return (
+        <span className="mx_ClarivaUserInfo_designation" data-testid="clariva-user-designation">
+            <ClarivaRoleBadge text={badge} />
         </span>
     );
 }

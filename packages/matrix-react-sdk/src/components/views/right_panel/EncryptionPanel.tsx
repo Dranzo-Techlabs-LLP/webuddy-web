@@ -21,6 +21,7 @@ import { RoomMember, User } from "matrix-js-sdk/src/matrix";
 import EncryptionInfo from "./EncryptionInfo";
 import VerificationPanel from "./VerificationPanel";
 import { ensureDMExists } from "../../../createRoom";
+import { ConsultantChatNotAllowedError } from "../../../clariva/chat/consultantRule"; // CLARIVA
 import { useTypedEventEmitter } from "../../../hooks/useEventEmitter";
 import Modal from "../../../Modal";
 import { _t } from "../../../languageHandler";
@@ -118,6 +119,8 @@ const EncryptionPanel: React.FC<IProps> = (props: IProps) => {
         } catch (e) {
             console.error("Error starting verification", e);
             setRequesting(false);
+            // CLARIVA: the consultant <-> consultant refusal already showed "Can't start chat"
+            if (e instanceof ConsultantChatNotAllowedError) return;
 
             Modal.createDialog(ErrorDialog, {
                 headerImage: require("../../../../res/img/e2e/warning.svg").default,
